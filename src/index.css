@@ -1,38 +1,686 @@
+/* ================================
+   BRANDFORGE LANDING PAGE
+   ================================ */
+
 * {
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
   font-family:
     Inter,
-    ui-sans-serif,
-    system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  background: #050812;
-  color: #f8fafc;
+  background: #050914;
+  color: #f5f7ff;
 }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
+/* ================================
+   MAIN PAGE
+   ================================ */
 
-button {
-  cursor: pointer;
-}
-
-#root {
+.landing-page {
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  background:
+    radial-gradient(
+      circle at 75% 20%,
+      rgba(43, 99, 255, 0.18),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 35% 65%,
+      rgba(95, 63, 255, 0.12),
+      transparent 30%
+    ),
+    #050914;
+}
+
+/* ================================
+   NAVBAR
+   ================================ */
+
+.landing-nav {
+  width: 100%;
+  height: 82px;
+  padding: 0 7%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+
+  background: rgba(5, 9, 20, 0.78);
+  backdrop-filter: blur(16px);
+
+  position: relative;
+  z-index: 10;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo-icon {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 13px;
+
+  background: linear-gradient(
+    135deg,
+    #4d8dff,
+    #7c5cff
+  );
+
+  box-shadow:
+    0 0 25px rgba(70, 120, 255, 0.35);
+
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.brand-logo h2 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -0.5px;
+}
+
+.brand-logo span {
+  display: block;
+  margin-top: 3px;
+
+  font-size: 8px;
+  letter-spacing: 2px;
+
+  color: #71809c;
+}
+
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-login,
+.nav-signup {
+  border: none;
+  cursor: pointer;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  padding: 11px 20px;
+  border-radius: 10px;
+
+  transition: 0.2s ease;
+}
+
+.nav-login {
+  background: transparent;
+  color: #dbe4ff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.nav-login:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-signup {
+  color: white;
+
+  background: linear-gradient(
+    135deg,
+    #347cff,
+    #735cff
+  );
+
+  box-shadow:
+    0 8px 25px rgba(57, 106, 255, 0.25);
+}
+
+.nav-signup:hover {
+  transform: translateY(-2px);
+}
+
+/* ================================
+   HERO
+   ================================ */
+
+.landing-main {
+  width: 100%;
+}
+
+.hero-section {
+  width: min(1200px, 90%);
+  min-height: 600px;
+
+  margin: 0 auto;
+
+  display: grid;
+  grid-template-columns: 1fr 0.9fr;
+
+  align-items: center;
+  gap: 60px;
+
+  padding: 75px 0 60px;
+}
+
+.hero-content {
+  max-width: 620px;
+}
+
+.hero-badge {
+  width: fit-content;
+
+  padding: 10px 17px;
+  margin-bottom: 24px;
+
+  border-radius: 30px;
+
+  border: 1px solid rgba(66, 130, 255, 0.55);
+
+  background: rgba(30, 65, 150, 0.12);
+
+  color: #70a5ff;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  letter-spacing: 1.5px;
+}
+
+.hero-content h1 {
+  margin: 0;
+
+  font-size: clamp(48px, 5vw, 76px);
+
+  line-height: 1.03;
+
+  letter-spacing: -3px;
+
+  font-weight: 800;
+}
+
+.hero-content h1 span {
+  background: linear-gradient(
+    90deg,
+    #ffffff,
+    #789cff,
+    #8d7aff
+  );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-content p {
+  max-width: 600px;
+
+  margin: 27px 0 32px;
+
+  color: #9ba9c4;
+
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.hero-buttons {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.hero-primary,
+.hero-secondary {
+  padding: 14px 23px;
+
+  border-radius: 11px;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.hero-primary {
+  border: none;
+
+  color: white;
+
+  background: linear-gradient(
+    135deg,
+    #397fff,
+    #765cff
+  );
+
+  box-shadow:
+    0 12px 35px rgba(58, 106, 255, 0.3);
+}
+
+.hero-primary span {
+  margin-left: 10px;
+  font-size: 17px;
+}
+
+.hero-primary:hover {
+  transform: translateY(-2px);
+}
+
+.hero-secondary {
+  color: #dbe4ff;
+
+  background: rgba(255, 255, 255, 0.035);
+
+  border: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.hero-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hero-note {
+  margin-top: 25px;
+
+  color: #63728f;
+
+  font-size: 13px;
+}
+
+/* ================================
+   HERO VISUAL
+   ================================ */
+
+.hero-visual {
+  position: relative;
+
+  min-height: 440px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visual-glow {
+  position: absolute;
+
+  width: 360px;
+  height: 360px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(52, 112, 255, 0.35),
+      transparent 68%
+    );
+
+  filter: blur(20px);
+}
+
+.main-visual-card {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  max-width: 470px;
+
+  padding: 30px;
+
+  border-radius: 24px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(26, 39, 67, 0.95),
+      rgba(8, 14, 28, 0.96)
+    );
+
+  border: 1px solid rgba(130, 158, 220, 0.22);
+
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  transform: rotate(1deg);
+}
+
+.visual-card-top {
+  display: flex;
+  justify-content: space-between;
+
+  color: #6f9dff;
+
+  font-size: 11px;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.visual-title {
+  margin-top: 28px;
+
+  font-size: 28px;
+  font-weight: 750;
+}
+
+.visual-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  margin: 18px 0 25px;
+}
+
+.visual-lines span {
+  display: block;
+
+  height: 6px;
+
+  border-radius: 10px;
+
+  background: #26334d;
+}
+
+.visual-lines span:first-child {
+  width: 75%;
+}
+
+.visual-lines span:nth-child(2) {
+  width: 55%;
+}
+
+.visual-lines span:nth-child(3) {
+  width: 35%;
+}
+
+.visual-grid {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 13px;
+}
+
+.visual-box {
+  min-height: 105px;
+
+  padding: 18px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  border-radius: 15px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.visual-box span {
+  font-size: 11px;
+  color: #8da1c4;
+}
+
+.visual-box strong {
+  font-size: 15px;
+}
+
+.visual-box.blue {
+  background: linear-gradient(
+    145deg,
+    rgba(42, 101, 255, 0.45),
+    rgba(31, 58, 120, 0.25)
+  );
+}
+
+.visual-box.purple {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 76, 255, 0.4),
+    rgba(55, 38, 120, 0.25)
+  );
+}
+
+.visual-box.cyan {
+  background: linear-gradient(
+    145deg,
+    rgba(25, 183, 210, 0.35),
+    rgba(20, 87, 110, 0.2)
+  );
+}
+
+.visual-box.dark {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+/* ================================
+   FLOATING CARDS
+   ================================ */
+
+.floating-card {
+  position: absolute;
+  z-index: 3;
+
+  padding: 13px 17px;
+
+  border-radius: 13px;
+
+  background: rgba(16, 24, 43, 0.9);
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+
+  backdrop-filter: blur(12px);
+
+  color: #dce5ff;
+
+  font-size: 12px;
+
+  box-shadow:
+    0 15px 40px rgba(0, 0, 0, 0.35);
+}
+
+.floating-card span {
+  color: #6f9dff;
+  font-weight: 800;
+}
+
+.floating-one {
+  top: 55px;
+  left: 0;
+}
+
+.floating-two {
+  right: 0;
+  bottom: 65px;
+}
+
+/* ================================
+   FEATURES
+   ================================ */
+
+.landing-features {
+  width: min(1200px, 90%);
+
+  margin: 0 auto;
+
+  padding: 20px 0 80px;
+
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 18px;
+}
+
+.feature-card {
+  padding: 27px;
+
+  min-height: 190px;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18, 29, 51, 0.9),
+      rgba(9, 16, 30, 0.9)
+    );
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+
+  transition: 0.25s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+
+  border-color: rgba(73, 126, 255, 0.35);
+
+  box-shadow:
+    0 15px 40px rgba(0, 0, 0, 0.25);
+}
+
+.feature-icon {
+  width: 43px;
+  height: 43px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  background: rgba(55, 109, 255, 0.13);
+
+  border: 1px solid rgba(55, 109, 255, 0.25);
+
+  color: #67a0ff;
+
+  font-size: 20px;
+
+  margin-bottom: 20px;
+}
+
+.feature-card h3 {
+  margin: 0 0 9px;
+
+  font-size: 18px;
+}
+
+.feature-card p {
+  margin: 0;
+
+  color: #75849f;
+
+  font-size: 13px;
+
+  line-height: 1.6;
+}
+
+/* ================================
+   RESPONSIVE
+   ================================ */
+
+@media (max-width: 900px) {
+  .hero-section {
+    grid-template-columns: 1fr;
+
+    padding-top: 50px;
+  }
+
+  .hero-content {
+    text-align: center;
+    margin: 0 auto;
+  }
+
+  .hero-badge {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-content p {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-buttons {
+    justify-content: center;
+  }
+
+  .hero-visual {
+    min-height: 400px;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .landing-nav {
+    padding: 0 5%;
+  }
+
+  .brand-logo span {
+    display: none;
+  }
+
+  .nav-login {
+    display: none;
+  }
+
+  .hero-section {
+    width: 90%;
+  }
+
+  .hero-content h1 {
+    font-size: 45px;
+    letter-spacing: -2px;
+  }
+
+  .hero-content p {
+    font-size: 15px;
+  }
+
+  .hero-buttons {
+    flex-direction: column;
+  }
+
+  .hero-primary,
+  .hero-secondary {
+    width: 100%;
+  }
+
+  .main-visual-card {
+    padding: 20px;
+  }
+
+  .floating-one {
+    left: -10px;
+  }
+
+  .floating-two {
+    right: -10px;
+  }
 }

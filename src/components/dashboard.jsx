@@ -19,6 +19,12 @@ import {
   Palette,
   Plus,
   X,
+  RefreshCw,
+  ChevronRight,
+  BarChart3,
+  Lightbulb,
+  Users,
+  Zap,
 } from "lucide-react";
 
 import "./dashboard.css";
@@ -51,8 +57,9 @@ function Dashboard({ onBack }) {
   // GENERATION STATE
   // ==================================================
 
-  const [generatingContent, setGeneratingContent] =
-    useState(false);
+  const [generatingContent, setGeneratingContent] = useState(false);
+  const [regeneratingCampaignId, setRegeneratingCampaignId] =
+    useState(null);
 
   // ==================================================
   // CAMPAIGN FORM
@@ -61,28 +68,17 @@ function Dashboard({ onBack }) {
   const [campaignType, setCampaignType] =
     useState("Product Launch");
 
-  const [audience, setAudience] =
-    useState("Creators");
-
-  const [platform, setPlatform] =
-    useState("All Platforms");
-
+  const [audience, setAudience] = useState("Creators");
+  const [platform, setPlatform] = useState("All Platforms");
   const [idea, setIdea] = useState("");
 
   // ==================================================
   // BRAND FORM
   // ==================================================
 
-  const [showBrandForm, setShowBrandForm] =
-    useState(false);
-
-  const [savingBrand, setSavingBrand] =
-    useState(false);
-
-  // create = new brand
-  // edit = existing brand
-  const [brandFormMode, setBrandFormMode] =
-    useState("create");
+  const [showBrandForm, setShowBrandForm] = useState(false);
+  const [savingBrand, setSavingBrand] = useState(false);
+  const [brandFormMode, setBrandFormMode] = useState("create");
 
   const [brandForm, setBrandForm] = useState({
     name: "",
@@ -92,10 +88,38 @@ function Dashboard({ onBack }) {
     personality: "",
     preferred_words: "",
     words_to_avoid: "",
-    primary_color: "#2E7D32",
-    secondary_color: "#A5D6A7",
+    primary_color: "#1677FF",
+    secondary_color: "#B9DCFF",
     logo_url: "",
   });
+
+  // ==================================================
+  // CONTENT FORM
+  // ==================================================
+
+  const [showContentForm, setShowContentForm] = useState(false);
+  const [savingContent, setSavingContent] = useState(false);
+
+  const [contentForm, setContentForm] = useState({
+    campaign_id: "",
+    platform: "Instagram",
+    content_type: "Social Post",
+    content: "",
+  });
+
+  // ==================================================
+  // GREETING
+  // ==================================================
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+
+    if (hour >= 5 && hour < 12) return "Good morning";
+    if (hour >= 12 && hour < 17) return "Good afternoon";
+    if (hour >= 17 && hour < 21) return "Good evening";
+
+    return "Good night";
+  };
 
   // ==================================================
   // NAVIGATION
@@ -133,42 +157,41 @@ function Dashboard({ onBack }) {
       setLoadingBrand(true);
       setBrandError("");
 
-      const response = await fetch(
-        `${API_URL}/api/brands`
-      );
-
+      const response = await fetch(`${API_URL}/api/brands`);
       const data = await response.json();
 
       console.log("GET /api/brands:", data);
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to load brands."
+          data.message || "Failed to load brands."
         );
       }
 
-      const loadedBrands =
-        Array.isArray(data.brands)
-          ? data.brands
-          : [];
+      const loadedBrands = Array.isArray(data.brands)
+        ? data.brands
+        : [];
 
       setBrands(loadedBrands);
 
       if (loadedBrands.length > 0) {
-        setBrand(loadedBrands[0]);
+        setBrand((currentBrand) => {
+          if (!currentBrand) return loadedBrands[0];
+
+          const matchingBrand = loadedBrands.find(
+            (item) => item.id === currentBrand.id
+          );
+
+          return matchingBrand || loadedBrands[0];
+        });
       } else {
         setBrand(null);
       }
     } catch (err) {
-      console.error(
-        "Brand API error:",
-        err
-      );
+      console.error("Brand API error:", err);
 
       setBrandError(
-        err.message ||
-          "Unable to load brand information."
+        err.message || "Unable to load brand information."
       );
 
       setBrands([]);
@@ -193,15 +216,11 @@ function Dashboard({ onBack }) {
 
       const data = await response.json();
 
-      console.log(
-        "GET /api/campaigns:",
-        data
-      );
+      console.log("GET /api/campaigns:", data);
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to load campaigns."
+          data.message || "Failed to load campaigns."
         );
       }
 
@@ -211,14 +230,10 @@ function Dashboard({ onBack }) {
           : []
       );
     } catch (err) {
-      console.error(
-        "Campaign API error:",
-        err
-      );
+      console.error("Campaign API error:", err);
 
       setCampaignError(
-        err.message ||
-          "Unable to load campaigns."
+        err.message || "Unable to load campaigns."
       );
     } finally {
       setLoadingCampaigns(false);
@@ -240,15 +255,11 @@ function Dashboard({ onBack }) {
 
       const data = await response.json();
 
-      console.log(
-        "GET /api/content:",
-        data
-      );
+      console.log("GET /api/content:", data);
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to load content."
+          data.message || "Failed to load content."
         );
       }
 
@@ -258,14 +269,10 @@ function Dashboard({ onBack }) {
           : []
       );
     } catch (err) {
-      console.error(
-        "Content API error:",
-        err
-      );
+      console.error("Content API error:", err);
 
       setContentError(
-        err.message ||
-          "Unable to load content."
+        err.message || "Unable to load content."
       );
 
       setContents([]);
@@ -285,7 +292,7 @@ function Dashboard({ onBack }) {
   }, []);
 
   // ==================================================
-  // REFRESH DATA
+  // REFRESH
   // ==================================================
 
   const refreshData = () => {
@@ -295,7 +302,7 @@ function Dashboard({ onBack }) {
   };
 
   // ==================================================
-  // RESET BRAND FORM
+  // BRAND FORM
   // ==================================================
 
   const resetBrandForm = () => {
@@ -307,29 +314,18 @@ function Dashboard({ onBack }) {
       personality: "",
       preferred_words: "",
       words_to_avoid: "",
-      primary_color: "#2E7D32",
-      secondary_color: "#A5D6A7",
+      primary_color: "#1677FF",
+      secondary_color: "#B9DCFF",
       logo_url: "",
     });
   };
 
-  // ==================================================
-  // OPEN CREATE BRAND FORM
-  // ==================================================
-
   const openCreateBrandForm = () => {
     setSaveError("");
-
     resetBrandForm();
-
     setBrandFormMode("create");
-
     setShowBrandForm(true);
   };
-
-  // ==================================================
-  // OPEN EDIT BRAND FORM
-  // ==================================================
 
   const openEditBrandForm = (selectedBrand = brand) => {
     setSaveError("");
@@ -341,44 +337,29 @@ function Dashboard({ onBack }) {
 
     setBrandForm({
       name: selectedBrand.name || "",
-      description:
-        selectedBrand.description || "",
+      description: selectedBrand.description || "",
       target_audience:
         selectedBrand.target_audience || "",
-      tone:
-        selectedBrand.tone || "",
-      personality:
-        selectedBrand.personality || "",
+      tone: selectedBrand.tone || "",
+      personality: selectedBrand.personality || "",
       preferred_words:
         selectedBrand.preferred_words || "",
       words_to_avoid:
         selectedBrand.words_to_avoid || "",
       primary_color:
-        selectedBrand.primary_color ||
-        "#2E7D32",
+        selectedBrand.primary_color || "#1677FF",
       secondary_color:
-        selectedBrand.secondary_color ||
-        "#A5D6A7",
-      logo_url:
-        selectedBrand.logo_url || "",
+        selectedBrand.secondary_color || "#B9DCFF",
+      logo_url: selectedBrand.logo_url || "",
     });
 
     setBrand(selectedBrand);
-
     setBrandFormMode("edit");
-
     setShowBrandForm(true);
   };
 
-  // ==================================================
-  // BRAND FORM CHANGE
-  // ==================================================
-
   const handleBrandChange = (event) => {
-    const {
-      name,
-      value,
-    } = event.target;
+    const { name, value } = event.target;
 
     setBrandForm((previous) => ({
       ...previous,
@@ -395,13 +376,10 @@ function Dashboard({ onBack }) {
 
     setSaveError("");
 
-    const cleanName =
-      brandForm.name.trim();
+    const cleanName = brandForm.name.trim();
 
     if (!cleanName) {
-      setSaveError(
-        "Brand name is required."
-      );
+      setSaveError("Brand name is required.");
       return;
     }
 
@@ -410,40 +388,21 @@ function Dashboard({ onBack }) {
 
       const payload = {
         name: cleanName,
-
-        description:
-          brandForm.description.trim(),
-
+        description: brandForm.description.trim(),
         target_audience:
           brandForm.target_audience.trim(),
-
-        tone:
-          brandForm.tone.trim(),
-
-        personality:
-          brandForm.personality.trim(),
-
+        tone: brandForm.tone.trim(),
+        personality: brandForm.personality.trim(),
         preferred_words:
           brandForm.preferred_words.trim(),
-
         words_to_avoid:
           brandForm.words_to_avoid.trim(),
-
-        primary_color:
-          brandForm.primary_color,
-
-        secondary_color:
-          brandForm.secondary_color,
-
-        logo_url:
-          brandForm.logo_url.trim(),
+        primary_color: brandForm.primary_color,
+        secondary_color: brandForm.secondary_color,
+        logo_url: brandForm.logo_url.trim(),
       };
 
       let response;
-
-      // ==================================================
-      // UPDATE EXISTING BRAND
-      // ==================================================
 
       if (
         brandFormMode === "edit" &&
@@ -454,97 +413,57 @@ function Dashboard({ onBack }) {
           `${API_URL}/api/brands/${brand.id}`,
           {
             method: "PUT",
-
             headers: {
-              "Content-Type":
-                "application/json",
+              "Content-Type": "application/json",
             },
-
-            body: JSON.stringify(
-              payload
-            ),
+            body: JSON.stringify(payload),
           }
         );
-      }
-
-      // ==================================================
-      // CREATE NEW BRAND
-      // ==================================================
-
-      else {
+      } else {
         response = await fetch(
           `${API_URL}/api/brands`,
           {
             method: "POST",
-
             headers: {
-              "Content-Type":
-                "application/json",
+              "Content-Type": "application/json",
             },
-
-            body: JSON.stringify(
-              payload
-            ),
+            body: JSON.stringify(payload),
           }
         );
       }
 
-      const data =
-        await response.json();
-
-      console.log(
-        "Brand response:",
-        data
-      );
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to save brand."
+          data.message || "Failed to save brand."
         );
       }
-
-      // ==================================================
-      // REFRESH BRAND DATA
-      // ==================================================
 
       await loadBrand();
 
       setShowBrandForm(false);
-
       resetBrandForm();
-
       setSaveError("");
-
       setBrandError("");
-
       setActivePage("Brand DNA");
-
     } catch (err) {
-      console.error(
-        "SAVE BRAND ERROR:",
-        err
-      );
+      console.error("SAVE BRAND ERROR:", err);
 
       setSaveError(
-        err.message ||
-          "Unable to save brand."
+        err.message || "Unable to save brand."
       );
     } finally {
       setSavingBrand(false);
     }
   };
 
-  // ==================================================
-  // SELECT BRAND
-  // ==================================================
-
   const selectBrand = (selectedBrand) => {
     setBrand(selectedBrand);
   };
 
   // ==================================================
-  // CREATE CAMPAIGN + GENERATE AI CONTENT
+  // GENERATE CAMPAIGN
   // ==================================================
 
   const handleGenerate = async () => {
@@ -566,59 +485,29 @@ function Dashboard({ onBack }) {
       setCampaignError("");
       setGeneratingContent(true);
 
-      // ==================================================
-      // STEP 1: CREATE CAMPAIGN
-      // ==================================================
-
-      console.log(
-        "Creating campaign..."
+      const campaignResponse = await fetch(
+        `${API_URL}/api/campaigns`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            brand_id: brand.id,
+            name: `${campaignType} Campaign`,
+            idea: idea.trim(),
+            objective:
+              `Create a ${campaignType.toLowerCase()} campaign`,
+            target_audience: audience,
+            key_message: idea.trim(),
+            platforms: platform,
+            status: "draft",
+          }),
+        }
       );
-
-      const campaignResponse =
-        await fetch(
-          `${API_URL}/api/campaigns`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              brand_id: brand.id,
-
-              name:
-                `${campaignType} Campaign`,
-
-              idea:
-                idea.trim(),
-
-              objective:
-                `Create a ${campaignType.toLowerCase()} campaign`,
-
-              target_audience:
-                audience,
-
-              key_message:
-                idea.trim(),
-
-              platforms:
-                platform,
-
-              status:
-                "draft",
-            }),
-          }
-        );
 
       const campaignData =
         await campaignResponse.json();
-
-      console.log(
-        "Campaign response:",
-        campaignData
-      );
 
       if (!campaignResponse.ok) {
         throw new Error(
@@ -626,10 +515,6 @@ function Dashboard({ onBack }) {
             "Campaign creation failed."
         );
       }
-
-      // ==================================================
-      // STEP 2: GET NEW CAMPAIGN ID
-      // ==================================================
 
       const campaignId =
         campaignData.campaign?.id;
@@ -640,44 +525,21 @@ function Dashboard({ onBack }) {
         );
       }
 
-      console.log(
-        "Campaign ID:",
-        campaignId
+      const contentResponse = await fetch(
+        `${API_URL}/api/generate-content`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            campaign_id: campaignId,
+          }),
+        }
       );
-
-      // ==================================================
-      // STEP 3: GENERATE AI CONTENT
-      // ==================================================
-
-      console.log(
-        "Generating AI content..."
-      );
-
-      const contentResponse =
-        await fetch(
-          `${API_URL}/api/generate-content`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              campaign_id:
-                campaignId,
-            }),
-          }
-        );
 
       const contentData =
         await contentResponse.json();
-
-      console.log(
-        "AI content response:",
-        contentData
-      );
 
       if (!contentResponse.ok) {
         throw new Error(
@@ -686,22 +548,12 @@ function Dashboard({ onBack }) {
         );
       }
 
-      // ==================================================
-      // STEP 4: SUCCESS
-      // ==================================================
-
-      console.log(
-        "AI content generated successfully!"
-      );
-
       setIdea("");
 
       await loadCampaigns();
-
       await loadContent();
 
       setActivePage("Content");
-
     } catch (err) {
       console.error(
         "Campaign generation error:",
@@ -718,23 +570,181 @@ function Dashboard({ onBack }) {
   };
 
   // ==================================================
+  // CONTENT FORM
+  // ==================================================
+
+  const openCreateContentForm = () => {
+    setContentError("");
+
+    setContentForm({
+      campaign_id:
+        campaigns.length > 0
+          ? String(campaigns[0].id)
+          : "",
+      platform: "Instagram",
+      content_type: "Social Post",
+      content: "",
+    });
+
+    setShowContentForm(true);
+  };
+
+  const handleContentChange = (event) => {
+    const { name, value } = event.target;
+
+    setContentForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
+
+  const handleCreateContent = async (event) => {
+    event.preventDefault();
+
+    setContentError("");
+
+    if (!contentForm.campaign_id) {
+      setContentError(
+        "Please select a campaign."
+      );
+      return;
+    }
+
+    if (!contentForm.content.trim()) {
+      setContentError(
+        "Please enter some content."
+      );
+      return;
+    }
+
+    try {
+      setSavingContent(true);
+
+      const response = await fetch(
+        `${API_URL}/api/content`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            campaign_id: Number(
+              contentForm.campaign_id
+            ),
+            platform: contentForm.platform,
+            content_type:
+              contentForm.content_type,
+            content:
+              contentForm.content.trim(),
+            status: "draft",
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Failed to create content."
+        );
+      }
+
+      setShowContentForm(false);
+
+      setContentForm({
+        campaign_id: "",
+        platform: "Instagram",
+        content_type: "Social Post",
+        content: "",
+      });
+
+      await loadContent();
+    } catch (err) {
+      console.error(
+        "CREATE CONTENT ERROR:",
+        err
+      );
+
+      setContentError(
+        err.message ||
+          "Unable to create content."
+      );
+    } finally {
+      setSavingContent(false);
+    }
+  };
+
+  // ==================================================
+  // REGENERATE
+  // ==================================================
+
+  const regenerateContent = async (
+    campaignId
+  ) => {
+    if (!campaignId) return;
+
+    try {
+      setContentError("");
+      setRegeneratingCampaignId(campaignId);
+
+      const response = await fetch(
+        `${API_URL}/api/generate-content`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            campaign_id: campaignId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Failed to regenerate content."
+        );
+      }
+
+      await loadContent();
+    } catch (err) {
+      console.error(
+        "REGENERATE CONTENT ERROR:",
+        err
+      );
+
+      setContentError(
+        err.message ||
+          "Unable to regenerate content."
+      );
+    } finally {
+      setRegeneratingCampaignId(null);
+    }
+  };
+
+  // ==================================================
   // OVERVIEW
   // ==================================================
 
   const renderOverview = () => (
     <>
-      <div className="page-heading">
+      <div className="hero-heading">
         <div>
-          <p className="eyebrow">
-            AI BRAND INTELLIGENCE
+          <p className="eyebrow blue-eyebrow">
+            {getGreeting().toUpperCase()},
           </p>
 
           <h1>
-            Good afternoon, Creator.
+            Create. Innovate. Grow.
           </h1>
 
-          <p className="heading-description">
-            Your brand intelligence overview.
+          <p className="hero-description">
+            Your AI-powered creative studio for
+            brand-aligned campaigns and content.
           </p>
         </div>
 
@@ -746,6 +756,7 @@ function Dashboard({ onBack }) {
         >
           <WandSparkles size={18} />
           Create Campaign
+          <ArrowRight size={17} />
         </button>
       </div>
 
@@ -767,277 +778,580 @@ function Dashboard({ onBack }) {
         </div>
       )}
 
+      {/* ================================================
+          STATS
+      ================================================= */}
+
       <div className="stats-grid">
 
         <div className="stat-card">
-          <div className="stat-icon">
+          <div className="stat-icon blue">
             <Megaphone size={20} />
           </div>
 
-          <div>
-            <span>
-              Campaigns
-            </span>
+          <div className="stat-content">
+            <span>Campaigns</span>
 
             <strong>
               {loadingCampaigns
                 ? "..."
                 : campaigns.length}
             </strong>
+
+            <small>
+              <TrendingUp size={13} />
+              25% vs last month
+            </small>
           </div>
 
-          <small>
-            Connected to database
-          </small>
+          <div className="mini-bars">
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+          </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">
+          <div className="stat-icon blue">
             <LayoutGrid size={20} />
           </div>
 
-          <div>
-            <span>
-              Assets Generated
-            </span>
+          <div className="stat-content">
+            <span>Assets Generated</span>
 
             <strong>
               {loadingContent
                 ? "..."
                 : contents.length}
             </strong>
+
+            <small>
+              <TrendingUp size={13} />
+              42% vs last month
+            </small>
           </div>
 
-          <small>
-            Content assets
-          </small>
+          <div className="mini-bars">
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+          </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">
+          <div className="stat-icon blue">
             <Brain size={20} />
           </div>
 
-          <div>
-            <span>
-              Brand Fit
-            </span>
+          <div className="stat-content">
+            <span>Brand Fit</span>
+            <strong>94%</strong>
 
-            <strong>
-              94%
-            </strong>
+            <small>
+              <TrendingUp size={13} />
+              6% vs last month
+            </small>
           </div>
 
-          <small>
-            Brand consistency
-          </small>
+          <div className="stat-ring">
+            <div>
+              94
+            </div>
+          </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">
+          <div className="stat-icon blue">
             <Target size={20} />
           </div>
 
-          <div>
-            <span>
-              Platforms
-            </span>
+          <div className="stat-content">
+            <span>Platforms</span>
+            <strong>06</strong>
 
-            <strong>
-              06
-            </strong>
+            <small>
+              <TrendingUp size={13} />
+              20% connected channels
+            </small>
           </div>
 
-          <small>
-            Connected channels
-          </small>
+          <div className="platform-dots">
+            <span />
+            <span />
+            <span />
+          </div>
         </div>
 
       </div>
 
-      <section className="engine-card">
+      {/* ================================================
+          MAIN GRID
+      ================================================= */}
 
-        <div className="section-title">
+      <div className="dashboard-grid">
 
-          <div className="section-title-icon">
-            <Sparkles size={20} />
-          </div>
+        {/* AI ENGINE */}
 
-          <div>
+        <section className="ai-engine-card">
+
+          <div className="ai-engine-content">
+
+            <div className="ai-label">
+              <Sparkles size={15} />
+              AI CAMPAIGN ENGINE
+            </div>
+
             <h2>
-              AI Campaign Engine
+              Turn your ideas into
+              <br />
+              powerful brand campaigns
             </h2>
 
             <p>
-              Turn a simple idea into a
-              complete, brand-aligned campaign.
+              Describe your campaign idea,
+              choose your audience, select
+              platforms and let AI generate
+              the perfect content for your brand.
             </p>
+
+            <div className="idea-input-wrapper">
+
+              <Sparkles size={17} />
+
+              <textarea
+                value={idea}
+                onChange={(event) =>
+                  setIdea(event.target.value)
+                }
+                placeholder="What's your campaign idea?"
+              />
+
+            </div>
+
+            <div className="campaign-options">
+
+              <div className="field">
+                <label>
+                  Campaign Type
+                </label>
+
+                <select
+                  value={campaignType}
+                  onChange={(event) =>
+                    setCampaignType(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option>
+                    Product Launch
+                  </option>
+                  <option>
+                    Brand Awareness
+                  </option>
+                  <option>
+                    Seasonal Campaign
+                  </option>
+                  <option>
+                    Social Media Campaign
+                  </option>
+                  <option>
+                    Event Promotion
+                  </option>
+                </select>
+              </div>
+
+              <div className="field">
+                <label>
+                  Audience
+                </label>
+
+                <select
+                  value={audience}
+                  onChange={(event) =>
+                    setAudience(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option>Creators</option>
+                  <option>Gen Z</option>
+                  <option>
+                    Marketing Teams
+                  </option>
+                  <option>Startups</option>
+                  <option>Enterprise</option>
+                </select>
+              </div>
+
+              <div className="field">
+                <label>
+                  Platforms
+                </label>
+
+                <select
+                  value={platform}
+                  onChange={(event) =>
+                    setPlatform(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option>
+                    All Platforms
+                  </option>
+                  <option>Instagram</option>
+                  <option>LinkedIn</option>
+                  <option>X</option>
+                  <option>
+                    Instagram + LinkedIn
+                  </option>
+                </select>
+              </div>
+
+            </div>
+
+            <button
+              className="generate-button"
+              onClick={handleGenerate}
+              disabled={generatingContent}
+            >
+              {generatingContent ? (
+                <>
+                  <Sparkles size={18} />
+                  Generating AI Content...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={18} />
+                  Generate Campaign
+                  <ArrowRight size={17} />
+                </>
+              )}
+            </button>
+
           </div>
 
+          <div className="ai-visual">
+
+            <div className="floating-icon icon-instagram">
+              ◎
+            </div>
+
+            <div className="floating-icon icon-linkedin">
+              in
+            </div>
+
+            <div className="floating-icon icon-x">
+              𝕏
+            </div>
+
+            <div className="ai-paper">
+
+              <div className="paper-top">
+                <Sparkles size={17} />
+                <span>AI</span>
+              </div>
+
+              <div className="paper-line large" />
+              <div className="paper-line" />
+              <div className="paper-line short" />
+
+              <div className="paper-button">
+                Creating your
+                <br />
+                campaign...
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* RECENT CAMPAIGNS */}
+
+        <section className="white-panel recent-panel">
+
+          <div className="panel-heading">
+
+            <div>
+              <h3>Recent Campaigns</h3>
+            </div>
+
+            <button
+              className="view-link"
+              onClick={() =>
+                setActivePage("Campaigns")
+              }
+            >
+              View all
+              <ArrowRight size={15} />
+            </button>
+
+          </div>
+
+          {loadingCampaigns ? (
+            <div className="empty-small">
+              Loading campaigns...
+            </div>
+          ) : campaigns.length === 0 ? (
+            <div className="empty-small">
+              No campaigns yet.
+            </div>
+          ) : (
+            <div className="recent-list">
+
+              {campaigns
+                .slice(0, 5)
+                .map((campaign, index) => (
+
+                  <div
+                    className="recent-campaign"
+                    key={campaign.id}
+                  >
+
+                    <div
+                      className={`campaign-avatar avatar-${index % 4}`}
+                    >
+                      {index === 0 ? (
+                        <Sparkles size={18} />
+                      ) : index === 1 ? (
+                        <Palette size={18} />
+                      ) : index === 2 ? (
+                        <Megaphone size={18} />
+                      ) : (
+                        <Target size={18} />
+                      )}
+                    </div>
+
+                    <div className="recent-info">
+
+                      <strong>
+                        {campaign.name}
+                      </strong>
+
+                      <span>
+                        {campaign.platforms ||
+                          "All Platforms"}
+                      </span>
+
+                    </div>
+
+                    <span
+                      className={`status-pill ${
+                        campaign.status ===
+                        "active"
+                          ? "green"
+                          : campaign.status ===
+                            "completed"
+                          ? "purple"
+                          : "blue"
+                      }`}
+                    >
+                      {campaign.status ||
+                        "draft"}
+                    </span>
+
+                    <ChevronRight
+                      size={16}
+                      className="recent-arrow"
+                    />
+
+                  </div>
+
+                ))}
+
+            </div>
+          )}
+
+        </section>
+
+        {/* BRAND */}
+
+        <section className="white-panel brand-summary">
+
+          <div className="panel-heading">
+
+            <h3>Your Brand</h3>
+
+            <button
+              className="view-link"
+              onClick={() =>
+                setActivePage("Brand DNA")
+              }
+            >
+              View all
+              <ArrowRight size={15} />
+            </button>
+
+          </div>
+
+          {loadingBrand ? (
+            <div className="empty-small">
+              Loading brand...
+            </div>
+          ) : !brand ? (
+            <div className="brand-empty">
+
+              <Sparkles size={26} />
+
+              <p>
+                Create your first brand.
+              </p>
+
+              <button
+                className="small-blue-button"
+                onClick={openCreateBrandForm}
+              >
+                <Plus size={15} />
+                Create Brand
+              </button>
+
+            </div>
+          ) : (
+            <>
+              <div className="brand-profile">
+
+                <div className="brand-avatar">
+                  {brand.name
+                    ?.charAt(0)
+                    ?.toUpperCase() || "B"}
+                </div>
+
+                <div>
+                  <h3>{brand.name}</h3>
+
+                  <p>
+                    {brand.description ||
+                      "Your brand identity"}
+                  </p>
+                </div>
+
+              </div>
+
+              <div className="color-dots">
+
+                <span
+                  style={{
+                    background:
+                      brand.primary_color ||
+                      "#1677FF",
+                  }}
+                />
+
+                <span
+                  style={{
+                    background:
+                      brand.secondary_color ||
+                      "#B9DCFF",
+                  }}
+                />
+
+                <span className="dot-white" />
+                <span className="dot-dark" />
+                <span className="dot-green" />
+
+              </div>
+
+              <div className="brand-fit">
+
+                <div className="brand-fit-top">
+
+                  <span>
+                    Brand Fit
+                  </span>
+
+                  <strong>
+                    94%
+                  </strong>
+
+                </div>
+
+                <div className="fit-progress">
+                  <div />
+                </div>
+
+              </div>
+
+              <button
+                className="edit-brand-button"
+                onClick={() =>
+                  openEditBrandForm(brand)
+                }
+              >
+                <Sparkles size={15} />
+                Edit Brand
+              </button>
+            </>
+          )}
+
+        </section>
+
+      </div>
+
+      {/* ================================================
+          IDEAS CARD
+      ================================================= */}
+
+      <div className="suggestion-card">
+
+        <div className="suggestion-icon">
+          <Sparkles size={21} />
         </div>
 
-        <textarea
-          value={idea}
-          onChange={(event) =>
-            setIdea(event.target.value)
-          }
-          placeholder="Describe your campaign idea..."
-        />
+        <div>
+          <strong>
+            Need fresh ideas?
+          </strong>
 
-        <div className="campaign-options">
-
-          <div className="field">
-            <label>
-              Campaign Type
-            </label>
-
-            <select
-              value={campaignType}
-              onChange={(event) =>
-                setCampaignType(
-                  event.target.value
-                )
-              }
-            >
-              <option>
-                Product Launch
-              </option>
-
-              <option>
-                Brand Awareness
-              </option>
-
-              <option>
-                Seasonal Campaign
-              </option>
-
-              <option>
-                Social Media Campaign
-              </option>
-
-              <option>
-                Event Promotion
-              </option>
-            </select>
-          </div>
-
-          <div className="field">
-            <label>
-              Audience
-            </label>
-
-            <select
-              value={audience}
-              onChange={(event) =>
-                setAudience(
-                  event.target.value
-                )
-              }
-            >
-              <option>
-                Creators
-              </option>
-
-              <option>
-                Gen Z
-              </option>
-
-              <option>
-                Marketing Teams
-              </option>
-
-              <option>
-                Startups
-              </option>
-
-              <option>
-                Enterprise
-              </option>
-            </select>
-          </div>
-
-          <div className="field">
-            <label>
-              Platforms
-            </label>
-
-            <select
-              value={platform}
-              onChange={(event) =>
-                setPlatform(
-                  event.target.value
-                )
-              }
-            >
-              <option>
-                All Platforms
-              </option>
-
-              <option>
-                Instagram
-              </option>
-
-              <option>
-                LinkedIn
-              </option>
-
-              <option>
-                X
-              </option>
-
-              <option>
-                Instagram + LinkedIn
-              </option>
-            </select>
-          </div>
-
+          <p>
+            Explore AI suggestions tailored
+            to your brand and audience.
+          </p>
         </div>
 
         <button
-          className="generate-button"
-          onClick={handleGenerate}
-          disabled={generatingContent}
+          onClick={() =>
+            setActivePage("Intelligence")
+          }
         >
-          {generatingContent ? (
-            <>
-              <Sparkles size={19} />
-              Generating AI Content...
-            </>
-          ) : (
-            <>
-              <WandSparkles size={19} />
-              Generate Campaign
-              <ArrowRight size={18} />
-            </>
-          )}
+          Get Suggestions
+          <ArrowRight size={15} />
         </button>
 
-      </section>
+      </div>
 
-      <section className="intelligence-section">
+      {/* ================================================
+          BRAND INTELLIGENCE
+      ================================================= */}
 
-        <div className="section-header">
+      <section className="intelligence-panel">
+
+        <div className="panel-heading">
 
           <div>
-            <p className="eyebrow">
-              INTELLIGENCE
-            </p>
-
             <h2>
               Brand Intelligence
             </h2>
+
+            <p>
+              Real insights. Better decisions.
+            </p>
           </div>
 
           <button
-            className="text-button"
+            className="view-link"
             onClick={() =>
-              setActivePage(
-                "Intelligence"
-              )
+              setActivePage("Intelligence")
             }
           >
             View insights
-            <ArrowRight size={16} />
+            <ArrowRight size={15} />
           </button>
 
         </div>
@@ -1046,90 +1360,143 @@ function Dashboard({ onBack }) {
 
           <div className="intelligence-card">
 
-            <div className="card-top">
+            <div className="intelligence-icon">
+              <Sparkles size={18} />
+            </div>
+
+            <div className="intelligence-card-body">
+
               <span>
                 Brand Voice
               </span>
 
-              <div className="mini-icon">
-                <Sparkles size={17} />
+              <strong>
+                92%
+              </strong>
+
+              <div className="progress">
+                <div style={{ width: "92%" }} />
               </div>
+
+              <small>
+                Consistent across all channels
+              </small>
+
             </div>
-
-            <strong>
-              94%
-            </strong>
-
-            <div className="progress">
-              <div
-                style={{
-                  width: "94%",
-                }}
-              />
-            </div>
-
-            <p>
-              Strong and consistent
-            </p>
 
           </div>
 
           <div className="intelligence-card">
 
-            <div className="card-top">
+            <div className="intelligence-icon">
+              <CheckCircle2 size={18} />
+            </div>
+
+            <div className="intelligence-card-body">
+
               <span>
                 Content Consistency
               </span>
 
-              <div className="mini-icon">
-                <CheckCircle2 size={17} />
+              <strong>
+                88%
+              </strong>
+
+              <div className="progress">
+                <div style={{ width: "88%" }} />
               </div>
+
+              <small>
+                Strong brand alignment
+              </small>
+
             </div>
-
-            <strong>
-              High
-            </strong>
-
-            <div className="progress">
-              <div
-                style={{
-                  width: "88%",
-                }}
-              />
-            </div>
-
-            <p>
-              Across all active channels
-            </p>
 
           </div>
 
           <div className="intelligence-card">
 
-            <div className="card-top">
+            <div className="intelligence-icon">
+              <TrendingUp size={18} />
+            </div>
+
+            <div className="intelligence-card-body">
+
               <span>
-                Active Campaigns
+                Audience Growth
               </span>
 
-              <div className="mini-icon">
-                <TrendingUp size={17} />
+              <strong>
+                +32%
+              </strong>
+
+              <div className="progress">
+                <div style={{ width: "82%" }} />
               </div>
+
+              <small>
+                Compared to last month
+              </small>
+
             </div>
-
-            <strong>
-              {campaigns.length}
-            </strong>
-
-            <div className="campaign-status">
-              <span />
-              Campaigns in workspace
-            </div>
-
-            <p>
-              Live database information
-            </p>
 
           </div>
+
+        </div>
+
+      </section>
+
+      {/* ================================================
+          QUICK ACTIONS
+      ================================================= */}
+
+      <section className="quick-actions">
+
+        <div className="panel-heading">
+
+          <h3>Quick Actions</h3>
+
+        </div>
+
+        <div className="quick-action-grid">
+
+          <button
+            onClick={openCreateBrandForm}
+          >
+            <div>
+              <Plus size={19} />
+            </div>
+            Create Brand
+          </button>
+
+          <button
+            onClick={() =>
+              setActivePage("Campaigns")
+            }
+          >
+            <div>
+              <Megaphone size={19} />
+            </div>
+            New Campaign
+          </button>
+
+          <button
+            onClick={openCreateContentForm}
+          >
+            <div>
+              <LayoutGrid size={19} />
+            </div>
+            Create Content
+          </button>
+
+          <button
+            onClick={refreshData}
+          >
+            <div>
+              <RefreshCw size={19} />
+            </div>
+            Refresh Data
+          </button>
 
         </div>
 
@@ -1150,43 +1517,34 @@ function Dashboard({ onBack }) {
             BRAND SYSTEM
           </p>
 
-          <h1>
-            Brand DNA
-          </h1>
+          <h1>Brand DNA</h1>
 
           <p className="heading-description">
-            Your brand's identity, voice and visual language.
+            Your brand's identity, voice and
+            visual language.
           </p>
         </div>
 
-        {/* ==================================================
-            CREATE / EDIT BRAND BUTTON
-            ONLY ONE BUTTON WILL APPEAR
-        ================================================== */}
-
-        <div className="brand-actions">
-
+        <button
+          className="primary-button"
+          onClick={() =>
+            brand
+              ? openEditBrandForm(brand)
+              : openCreateBrandForm()
+          }
+        >
           {brand ? (
-            <button
-              className="primary-button"
-              onClick={() =>
-                openEditBrandForm(brand)
-              }
-            >
+            <>
               <Sparkles size={18} />
               Edit Brand
-            </button>
+            </>
           ) : (
-            <button
-              className="primary-button"
-              onClick={openCreateBrandForm}
-            >
+            <>
               <Plus size={18} />
               Create Brand
-            </button>
+            </>
           )}
-
-        </div>
+        </button>
 
       </div>
 
@@ -1202,13 +1560,8 @@ function Dashboard({ onBack }) {
         </div>
       )}
 
-      {/* ==================================================
-          BRAND SELECTOR
-      ================================================== */}
-
       {!loadingBrand &&
         brands.length > 0 && (
-
           <div className="brand-selector-panel">
 
             <div>
@@ -1216,58 +1569,46 @@ function Dashboard({ onBack }) {
                 YOUR BRANDS
               </p>
 
-              <h3>
-                Select a brand
-              </h3>
+              <h3>Select a brand</h3>
             </div>
 
             <div className="brand-selector-list">
 
-              {brands.map(
-                (item) => (
+              {brands.map((item) => (
+                <button
+                  key={item.id}
+                  className={`brand-selector-item ${
+                    brand?.id === item.id
+                      ? "selected"
+                      : ""
+                  }`}
+                  onClick={() =>
+                    selectBrand(item)
+                  }
+                >
+                  <div className="brand-selector-icon">
+                    <Sparkles size={17} />
+                  </div>
 
-                  <button
-                    key={item.id}
-                    className={`brand-selector-item ${
-                      brand?.id === item.id
-                        ? "selected"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      selectBrand(item)
-                    }
-                  >
+                  <div>
+                    <strong>
+                      {item.name}
+                    </strong>
 
-                    <div className="brand-selector-icon">
-                      <Sparkles size={17} />
-                    </div>
-
-                    <div>
-                      <strong>
-                        {item.name}
-                      </strong>
-
-                      <span>
-                        {item.target_audience ||
-                          "Brand profile"}
-                      </span>
-                    </div>
-
-                  </button>
-
-                )
-              )}
+                    <span>
+                      {item.target_audience ||
+                        "Brand profile"}
+                    </span>
+                  </div>
+                </button>
+              ))}
 
             </div>
-
           </div>
-
         )}
 
       {loadingBrand ? (
-
         <div className="large-panel">
-
           <h2>
             Loading brand information...
           </h2>
@@ -1275,20 +1616,14 @@ function Dashboard({ onBack }) {
           <p>
             Connecting to BrandForge backend.
           </p>
-
         </div>
-
       ) : !brand ? (
-
-        <div className="large-panel">
-
+        <div className="large-panel empty-state">
           <div className="panel-icon">
             <Sparkles size={21} />
           </div>
 
-          <h2>
-            No brand found
-          </h2>
+          <h2>No brand found</h2>
 
           <p>
             Create your first brand to start
@@ -1302,41 +1637,40 @@ function Dashboard({ onBack }) {
             <Plus size={18} />
             Create Your Brand
           </button>
-
         </div>
-
       ) : (
-
         <>
-
           <div className="large-panel brand-header-panel">
 
-            <div className="panel-icon">
-              <Sparkles size={21} />
+            <div className="brand-large-avatar">
+              {brand.name
+                ?.charAt(0)
+                ?.toUpperCase()}
             </div>
 
-            <h2>
-              {brand.name}
-            </h2>
+            <div>
+              <p className="eyebrow">
+                ACTIVE BRAND
+              </p>
 
-            <p>
-              {brand.description ||
-                "No brand description available."}
-            </p>
+              <h2>{brand.name}</h2>
+
+              <p>
+                {brand.description ||
+                  "No brand description available."}
+              </p>
+            </div>
 
           </div>
 
           <div className="dna-grid">
 
             <div className="large-panel">
-
               <div className="panel-icon">
                 <Sparkles size={21} />
               </div>
 
-              <h2>
-                Brand Voice
-              </h2>
+              <h2>Brand Voice</h2>
 
               <p>
                 {brand.tone ||
@@ -1344,11 +1678,8 @@ function Dashboard({ onBack }) {
               </p>
 
               <div className="tag-list">
-
                 {brand.tone && (
-                  <span>
-                    {brand.tone}
-                  </span>
+                  <span>{brand.tone}</span>
                 )}
 
                 {brand.personality && (
@@ -1356,20 +1687,15 @@ function Dashboard({ onBack }) {
                     {brand.personality}
                   </span>
                 )}
-
               </div>
-
             </div>
 
             <div className="large-panel">
-
               <div className="panel-icon">
                 <Target size={21} />
               </div>
 
-              <h2>
-                Target Audience
-              </h2>
+              <h2>Target Audience</h2>
 
               <p>
                 {brand.target_audience ||
@@ -1377,40 +1703,28 @@ function Dashboard({ onBack }) {
               </p>
 
               <div className="audience-score">
-
-                <strong>
-                  92%
-                </strong>
-
-                <span>
-                  Audience match
-                </span>
-
+                <strong>92%</strong>
+                <span>Audience match</span>
               </div>
-
             </div>
 
             <div className="large-panel">
-
               <div className="panel-icon">
                 <Palette size={21} />
               </div>
 
-              <h2>
-                Visual Identity
-              </h2>
+              <h2>Visual Identity</h2>
 
               <p>
                 Your brand colors and visual preferences.
               </p>
 
               <div className="visual-palette">
-
                 <span
                   style={{
                     backgroundColor:
                       brand.primary_color ||
-                      "#2E7D32",
+                      "#1677FF",
                   }}
                 />
 
@@ -1418,37 +1732,30 @@ function Dashboard({ onBack }) {
                   style={{
                     backgroundColor:
                       brand.secondary_color ||
-                      "#A5D6A7",
+                      "#B9DCFF",
                   }}
                 />
 
                 <span
                   style={{
-                    backgroundColor:
-                      "#ffffff",
+                    backgroundColor: "#ffffff",
                   }}
                 />
 
                 <span
                   style={{
-                    backgroundColor:
-                      "#0f172a",
+                    backgroundColor: "#0f172a",
                   }}
                 />
-
               </div>
-
             </div>
 
             <div className="large-panel">
-
               <div className="panel-icon">
                 <CheckCircle2 size={21} />
               </div>
 
-              <h2>
-                Brand Consistency
-              </h2>
+              <h2>Brand Consistency</h2>
 
               <p>
                 Brand information is connected
@@ -1456,65 +1763,44 @@ function Dashboard({ onBack }) {
               </p>
 
               <div className="consistency-score">
-
-                <strong>
-                  94%
-                </strong>
-
-                <span>
-                  Excellent
-                </span>
-
+                <strong>94%</strong>
+                <span>Excellent</span>
               </div>
-
             </div>
 
             <div className="large-panel">
-
               <div className="panel-icon">
                 <Sparkles size={21} />
               </div>
 
-              <h2>
-                Preferred Words
-              </h2>
+              <h2>Preferred Words</h2>
 
               <p>
                 {brand.preferred_words ||
                   "No preferred words configured."}
               </p>
-
             </div>
 
             <div className="large-panel">
-
               <div className="panel-icon">
                 <Brain size={21} />
               </div>
 
-              <h2>
-                Words to Avoid
-              </h2>
+              <h2>Words to Avoid</h2>
 
               <p>
                 {brand.words_to_avoid ||
                   "No restricted words configured."}
               </p>
-
             </div>
 
           </div>
-
         </>
-
       )}
 
-      {/* ==================================================
-          BRAND MODAL
-      ================================================== */}
+      {/* BRAND MODAL */}
 
       {showBrandForm && (
-
         <div className="brand-modal-overlay">
 
           <div className="brand-modal">
@@ -1522,7 +1808,6 @@ function Dashboard({ onBack }) {
             <div className="brand-modal-header">
 
               <div>
-
                 <p className="eyebrow">
                   BRAND SETUP
                 </p>
@@ -1538,7 +1823,6 @@ function Dashboard({ onBack }) {
                     ? "Update your brand identity."
                     : "Add a new brand identity to BrandForge."}
                 </p>
-
               </div>
 
               <button
@@ -1568,28 +1852,19 @@ function Dashboard({ onBack }) {
               <div className="form-row">
 
                 <div className="field">
-
-                  <label>
-                    Brand Name *
-                  </label>
+                  <label>Brand Name *</label>
 
                   <input
                     type="text"
                     name="name"
-                    value={
-                      brandForm.name
-                    }
-                    onChange={
-                      handleBrandChange
-                    }
+                    value={brandForm.name}
+                    onChange={handleBrandChange}
                     placeholder="Example: EcoSip"
                     required
                   />
-
                 </div>
 
                 <div className="field">
-
                   <label>
                     Target Audience
                   </label>
@@ -1600,63 +1875,43 @@ function Dashboard({ onBack }) {
                     value={
                       brandForm.target_audience
                     }
-                    onChange={
-                      handleBrandChange
-                    }
+                    onChange={handleBrandChange}
                     placeholder="Example: College students"
                   />
-
                 </div>
 
               </div>
 
               <div className="field">
-
-                <label>
-                  Brand Description
-                </label>
+                <label>Brand Description</label>
 
                 <textarea
                   name="description"
                   value={
                     brandForm.description
                   }
-                  onChange={
-                    handleBrandChange
-                  }
+                  onChange={handleBrandChange}
                   placeholder="Describe your brand..."
                   rows="3"
                 />
-
               </div>
 
               <div className="form-row">
 
                 <div className="field">
-
-                  <label>
-                    Brand Tone
-                  </label>
+                  <label>Brand Tone</label>
 
                   <input
                     type="text"
                     name="tone"
-                    value={
-                      brandForm.tone
-                    }
-                    onChange={
-                      handleBrandChange
-                    }
+                    value={brandForm.tone}
+                    onChange={handleBrandChange}
                     placeholder="Friendly, inspiring..."
                   />
-
                 </div>
 
                 <div className="field">
-
-                  <label>
-                    Personality
-                  </label>
+                  <label>Personality</label>
 
                   <input
                     type="text"
@@ -1664,12 +1919,9 @@ function Dashboard({ onBack }) {
                     value={
                       brandForm.personality
                     }
-                    onChange={
-                      handleBrandChange
-                    }
+                    onChange={handleBrandChange}
                     placeholder="Modern, energetic..."
                   />
-
                 </div>
 
               </div>
@@ -1677,7 +1929,6 @@ function Dashboard({ onBack }) {
               <div className="form-row">
 
                 <div className="field">
-
                   <label>
                     Preferred Words
                   </label>
@@ -1688,16 +1939,12 @@ function Dashboard({ onBack }) {
                     value={
                       brandForm.preferred_words
                     }
-                    onChange={
-                      handleBrandChange
-                    }
+                    onChange={handleBrandChange}
                     placeholder="sustainable, reusable..."
                   />
-
                 </div>
 
                 <div className="field">
-
                   <label>
                     Words to Avoid
                   </label>
@@ -1708,12 +1955,9 @@ function Dashboard({ onBack }) {
                     value={
                       brandForm.words_to_avoid
                     }
-                    onChange={
-                      handleBrandChange
-                    }
+                    onChange={handleBrandChange}
                     placeholder="wasteful, disposable..."
                   />
-
                 </div>
 
               </div>
@@ -1721,83 +1965,59 @@ function Dashboard({ onBack }) {
               <div className="form-row">
 
                 <div className="field">
-
                   <label>
                     Primary Color
                   </label>
 
                   <div className="color-input">
-
                     <input
                       type="color"
                       name="primary_color"
                       value={
                         brandForm.primary_color
                       }
-                      onChange={
-                        handleBrandChange
-                      }
+                      onChange={handleBrandChange}
                     />
 
                     <span>
-                      {
-                        brandForm.primary_color
-                      }
+                      {brandForm.primary_color}
                     </span>
-
                   </div>
-
                 </div>
 
                 <div className="field">
-
                   <label>
                     Secondary Color
                   </label>
 
                   <div className="color-input">
-
                     <input
                       type="color"
                       name="secondary_color"
                       value={
                         brandForm.secondary_color
                       }
-                      onChange={
-                        handleBrandChange
-                      }
+                      onChange={handleBrandChange}
                     />
 
                     <span>
-                      {
-                        brandForm.secondary_color
-                      }
+                      {brandForm.secondary_color}
                     </span>
-
                   </div>
-
                 </div>
 
               </div>
 
               <div className="field">
-
-                <label>
-                  Logo URL
-                </label>
+                <label>Logo URL</label>
 
                 <input
                   type="text"
                   name="logo_url"
-                  value={
-                    brandForm.logo_url
-                  }
-                  onChange={
-                    handleBrandChange
-                  }
+                  value={brandForm.logo_url}
+                  onChange={handleBrandChange}
                   placeholder="https://..."
                 />
-
               </div>
 
               <div className="brand-form-actions">
@@ -1834,13 +2054,9 @@ function Dashboard({ onBack }) {
               </div>
 
             </form>
-
           </div>
-
         </div>
-
       )}
-
     </>
   );
 
@@ -1851,18 +2067,16 @@ function Dashboard({ onBack }) {
   const renderCampaigns = () => (
     <>
       <div className="page-heading">
-
         <div>
           <p className="eyebrow">
             CAMPAIGN STUDIO
           </p>
 
-          <h1>
-            Campaigns
-          </h1>
+          <h1>Campaigns</h1>
 
           <p className="heading-description">
-            Create, manage and monitor your AI-powered campaigns.
+            Create, manage and monitor your
+            AI-powered campaigns.
           </p>
         </div>
 
@@ -1875,7 +2089,6 @@ function Dashboard({ onBack }) {
           <WandSparkles size={18} />
           New Campaign
         </button>
-
       </div>
 
       {campaignError && (
@@ -1887,87 +2100,72 @@ function Dashboard({ onBack }) {
       <div className="campaign-list">
 
         {loadingCampaigns ? (
-
           <div className="large-panel">
-            <h2>
-              Loading campaigns...
-            </h2>
+            <h2>Loading campaigns...</h2>
           </div>
-
         ) : campaigns.length === 0 ? (
-
-          <div className="large-panel">
-
-            <h2>
-              No campaigns yet
-            </h2>
+          <div className="large-panel empty-state">
+            <h2>No campaigns yet</h2>
 
             <p>
               Create your first campaign from
               the Campaign Engine.
             </p>
 
+            <button
+              className="primary-button"
+              onClick={() =>
+                setActivePage("Overview")
+              }
+            >
+              <WandSparkles size={18} />
+              Create Campaign
+            </button>
           </div>
-
         ) : (
-
-          campaigns.map(
-            (campaign) => (
-
-              <div
-                className="campaign-row"
-                key={campaign.id}
-              >
-
-                <div className="campaign-row-icon">
-                  <Megaphone size={21} />
-                </div>
-
-                <div className="campaign-row-content">
-
-                  <h3>
-                    {campaign.name}
-                  </h3>
-
-                  <p>
-                    {campaign.platforms ||
-                      "Platform not specified"}
-                  </p>
-
-                </div>
-
-                <span
-                  className={`status ${
-                    campaign.status ===
-                    "active"
-                      ? "active"
-                      : campaign.status ===
-                        "completed"
-                      ? "completed"
-                      : "draft"
-                  }`}
-                >
-                  {campaign.status ||
-                    "draft"}
-                </span>
-
-                <span className="campaign-date">
-
-                  {campaign.created_at
-                    ? new Date(
-                        campaign.created_at
-                      ).toLocaleDateString()
-                    : ""}
-
-                </span>
-
-                <ArrowRight size={18} />
-
+          campaigns.map((campaign) => (
+            <div
+              className="campaign-row"
+              key={campaign.id}
+            >
+              <div className="campaign-row-icon">
+                <Megaphone size={21} />
               </div>
 
-            )
-          )
+              <div className="campaign-row-content">
+                <h3>{campaign.name}</h3>
 
+                <p>
+                  {campaign.platforms ||
+                    "Platform not specified"}
+                </p>
+              </div>
+
+              <span
+                className={`status ${
+                  campaign.status ===
+                  "active"
+                    ? "active"
+                    : campaign.status ===
+                      "completed"
+                    ? "completed"
+                    : "draft"
+                }`}
+              >
+                {campaign.status || "draft"}
+              </span>
+
+              <span className="campaign-date">
+                {campaign.created_at
+                  ? new Date(
+                      campaign.created_at
+                    ).toLocaleDateString()
+                  : ""}
+              </span>
+
+              <ArrowRight size={18} />
+            </div>
+          ))
         )}
 
       </div>
@@ -1987,25 +2185,35 @@ function Dashboard({ onBack }) {
             CONTENT STUDIO
           </p>
 
-          <h1>
-            Content
-          </h1>
+          <h1>Content</h1>
 
           <p className="heading-description">
-            Brand-aligned content generated for every channel.
+            Brand-aligned content generated for
+            every channel.
           </p>
         </div>
 
-        <button
-          className="primary-button"
-          onClick={() =>
-            setActivePage("Overview")
-          }
-        >
-          <WandSparkles size={18} />
-          Generate Content
-        </button>
+        <div className="brand-actions">
 
+          <button
+            className="secondary-button"
+            onClick={openCreateContentForm}
+          >
+            <Plus size={18} />
+            Create Content
+          </button>
+
+          <button
+            className="primary-button"
+            onClick={() =>
+              setActivePage("Overview")
+            }
+          >
+            <WandSparkles size={18} />
+            Generate Content
+          </button>
+
+        </div>
       </div>
 
       {contentError && (
@@ -2015,80 +2223,267 @@ function Dashboard({ onBack }) {
       )}
 
       {loadingContent ? (
-
         <div className="large-panel">
-
-          <h2>
-            Loading content...
-          </h2>
-
+          <h2>Loading content...</h2>
         </div>
-
       ) : contents.length === 0 ? (
+        <div className="large-panel empty-state">
 
-        <div className="large-panel">
+          <div className="panel-icon">
+            <LayoutGrid size={21} />
+          </div>
 
-          <h2>
-            No content available
-          </h2>
+          <h2>No content available</h2>
 
           <p>
-            No content has been generated yet.
+            Create content manually or generate
+            AI content from a campaign.
           </p>
 
+          <button
+            className="primary-button"
+            onClick={openCreateContentForm}
+          >
+            <Plus size={18} />
+            Create Content
+          </button>
+
         </div>
-
       ) : (
-
         <div className="content-grid">
 
-          {contents.map(
-            (item) => (
+          {contents.map((item) => (
+            <div
+              className="content-card"
+              key={item.id}
+            >
 
-              <div
-                className="content-card"
-                key={item.id}
-              >
+              <div className="content-card-top">
+                <LayoutGrid size={21} />
 
-                <div className="content-card-top">
-
-                  <LayoutGrid size={21} />
-
-                  <span>
-                    {item.platform ||
-                      "General"}
-                  </span>
-
-                </div>
-
-                <h3>
-                  {item.content}
-                </h3>
-
-                <p>
-                  {item.content_type}
-                </p>
-
-                <div className="content-footer">
-
-                  <span>
-                    {item.status ||
-                      "draft"}
-                  </span>
-
-                  <span>
-                    Brand aligned
-                  </span>
-
-                </div>
-
+                <span>
+                  {item.platform || "General"}
+                </span>
               </div>
-            )
-          )}
+
+              <h3>{item.content}</h3>
+
+              <p>{item.content_type}</p>
+
+              <div className="content-footer">
+                <span>
+                  {item.status || "draft"}
+                </span>
+
+                <span>
+                  Brand aligned
+                </span>
+              </div>
+
+              {item.campaign_id && (
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    regenerateContent(
+                      item.campaign_id
+                    )
+                  }
+                  disabled={
+                    regeneratingCampaignId ===
+                    item.campaign_id
+                  }
+                >
+                  <RefreshCw size={15} />
+
+                  {regeneratingCampaignId ===
+                  item.campaign_id
+                    ? "Regenerating..."
+                    : "Regenerate"}
+                </button>
+              )}
+
+            </div>
+          ))}
 
         </div>
       )}
 
+      {/* CONTENT MODAL */}
+
+      {showContentForm && (
+        <div className="brand-modal-overlay">
+
+          <div className="brand-modal">
+
+            <div className="brand-modal-header">
+
+              <div>
+                <p className="eyebrow">
+                  CONTENT STUDIO
+                </p>
+
+                <h2>Create Content</h2>
+
+                <p>
+                  Create a brand-aligned
+                  content asset.
+                </p>
+              </div>
+
+              <button
+                className="modal-close"
+                type="button"
+                onClick={() => {
+                  setShowContentForm(false);
+                  setContentError("");
+                }}
+              >
+                <X size={20} />
+              </button>
+
+            </div>
+
+            {contentError && (
+              <div className="error-message">
+                {contentError}
+              </div>
+            )}
+
+            <form
+              onSubmit={handleCreateContent}
+              className="brand-form"
+            >
+
+              <div className="field">
+                <label>Campaign *</label>
+
+                <select
+                  name="campaign_id"
+                  value={
+                    contentForm.campaign_id
+                  }
+                  onChange={
+                    handleContentChange
+                  }
+                  required
+                >
+                  <option value="">
+                    Select a campaign
+                  </option>
+
+                  {campaigns.map(
+                    (campaign) => (
+                      <option
+                        key={campaign.id}
+                        value={campaign.id}
+                      >
+                        {campaign.name}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div className="form-row">
+
+                <div className="field">
+                  <label>Platform</label>
+
+                  <select
+                    name="platform"
+                    value={
+                      contentForm.platform
+                    }
+                    onChange={
+                      handleContentChange
+                    }
+                  >
+                    <option>Instagram</option>
+                    <option>LinkedIn</option>
+                    <option>X</option>
+                    <option>Facebook</option>
+                    <option>Website</option>
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label>Content Type</label>
+
+                  <select
+                    name="content_type"
+                    value={
+                      contentForm.content_type
+                    }
+                    onChange={
+                      handleContentChange
+                    }
+                  >
+                    <option>
+                      Social Post
+                    </option>
+                    <option>Caption</option>
+                    <option>Ad Copy</option>
+                    <option>Blog Content</option>
+                    <option>Email</option>
+                    <option>
+                      Product Description
+                    </option>
+                  </select>
+                </div>
+
+              </div>
+
+              <div className="field">
+                <label>Content *</label>
+
+                <textarea
+                  name="content"
+                  value={
+                    contentForm.content
+                  }
+                  onChange={
+                    handleContentChange
+                  }
+                  placeholder="Write your brand-aligned content..."
+                  rows="7"
+                  required
+                />
+              </div>
+
+              <div className="brand-form-actions">
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    setShowContentForm(false);
+                    setContentError("");
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={savingContent}
+                >
+                  {savingContent ? (
+                    "Saving..."
+                  ) : (
+                    <>
+                      <CheckCircle2 size={18} />
+                      Save Content
+                    </>
+                  )}
+                </button>
+
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -2099,71 +2494,37 @@ function Dashboard({ onBack }) {
   const renderIntelligence = () => (
     <>
       <div className="page-heading">
-
         <div>
           <p className="eyebrow">
             AI ANALYTICS
           </p>
 
-          <h1>
-            Intelligence
-          </h1>
+          <h1>Intelligence</h1>
 
           <p className="heading-description">
             Understand how your brand is performing.
           </p>
         </div>
-
       </div>
 
       <div className="intelligence-summary">
 
         <div>
-
-          <span>
-            Brand Growth
-          </span>
-
-          <strong>
-            +28%
-          </strong>
-
-          <p>
-            Compared with last month
-          </p>
-
+          <span>Brand Growth</span>
+          <strong>+28%</strong>
+          <p>Compared with last month</p>
         </div>
 
         <div>
-
-          <span>
-            Audience Match
-          </span>
-
-          <strong>
-            92%
-          </strong>
-
-          <p>
-            Based on campaign activity
-          </p>
-
+          <span>Audience Match</span>
+          <strong>92%</strong>
+          <p>Based on campaign activity</p>
         </div>
 
         <div>
-
-          <span>
-            Creative Score
-          </span>
-
-          <strong>
-            94%
-          </strong>
-
-          <p>
-            Across generated assets
-          </p>
-
+          <span>Creative Score</span>
+          <strong>94%</strong>
+          <p>Across generated assets</p>
         </div>
 
       </div>
@@ -2174,49 +2535,22 @@ function Dashboard({ onBack }) {
           <Brain size={21} />
         </div>
 
-        <h2>
-          AI Creative Insights
-        </h2>
+        <h2>AI Creative Insights</h2>
 
-        <div className="insight-item">
-
-          <CheckCircle2 size={18} />
-
-          <span>
-            Your visual identity is highly consistent.
-          </span>
-
-        </div>
-
-        <div className="insight-item">
-
-          <CheckCircle2 size={18} />
-
-          <span>
-            Short-form campaign messaging is performing strongly.
-          </span>
-
-        </div>
-
-        <div className="insight-item">
-
-          <CheckCircle2 size={18} />
-
-          <span>
-            Audience alignment has increased this month.
-          </span>
-
-        </div>
-
-        <div className="insight-item">
-
-          <CheckCircle2 size={18} />
-
-          <span>
-            Your strongest content uses concise messaging.
-          </span>
-
-        </div>
+        {[
+          "Your visual identity is highly consistent.",
+          "Short-form campaign messaging is performing strongly.",
+          "Audience alignment has increased this month.",
+          "Your strongest content uses concise messaging.",
+        ].map((text) => (
+          <div
+            className="insight-item"
+            key={text}
+          >
+            <CheckCircle2 size={18} />
+            <span>{text}</span>
+          </div>
+        ))}
 
       </div>
     </>
@@ -2231,19 +2565,15 @@ function Dashboard({ onBack }) {
       <div className="page-heading">
 
         <div>
-
           <p className="eyebrow">
             WORKSPACE
           </p>
 
-          <h1>
-            Settings
-          </h1>
+          <h1>Settings</h1>
 
           <p className="heading-description">
             Manage your BrandForge workspace.
           </p>
-
         </div>
 
       </div>
@@ -2251,83 +2581,43 @@ function Dashboard({ onBack }) {
       <div className="settings-panel">
 
         <div className="settings-row">
-
           <div>
-
-            <h3>
-              Workspace Name
-            </h3>
-
-            <p>
-              BrandForge AI
-            </p>
-
+            <h3>Workspace Name</h3>
+            <p>BrandForge AI</p>
           </div>
 
-          <button>
-            Edit
-          </button>
-
+          <button>Edit</button>
         </div>
 
         <div className="settings-row">
-
           <div>
-
-            <h3>
-              AI Creativity
-            </h3>
-
-            <p>
-              Balanced
-            </p>
-
+            <h3>AI Creativity</h3>
+            <p>Balanced</p>
           </div>
 
-          <button>
-            Edit
-          </button>
-
+          <button>Edit</button>
         </div>
 
         <div className="settings-row">
-
           <div>
-
-            <h3>
-              Connected Platforms
-            </h3>
-
+            <h3>Connected Platforms</h3>
             <p>
               Instagram, LinkedIn, X
             </p>
-
           </div>
 
-          <button>
-            Manage
-          </button>
-
+          <button>Manage</button>
         </div>
 
         <div className="settings-row">
-
           <div>
-
-            <h3>
-              Brand Intelligence
-            </h3>
-
+            <h3>Brand Intelligence</h3>
             <p>
               Automatic analysis enabled
             </p>
-
           </div>
 
-          <button>
-            Manage
-          </button>
-
+          <button>Manage</button>
         </div>
 
       </div>
@@ -2339,60 +2629,51 @@ function Dashboard({ onBack }) {
   // ==================================================
 
   const renderPage = () => {
-
     switch (activePage) {
-
       case "Brand DNA":
-        return renderBrandDNA();
+        return renderBrandDNA;
 
       case "Campaigns":
-        return renderCampaigns();
+        return renderCampaigns;
 
       case "Content":
-        return renderContent();
+        return renderContent;
 
       case "Intelligence":
-        return renderIntelligence();
+        return renderIntelligence;
 
       case "Settings":
-        return renderSettings();
+        return renderSettings;
 
       default:
-        return renderOverview();
-
+        return renderOverview;
     }
   };
 
+  const PageComponent = renderPage();
+
   // ==================================================
-  // DASHBOARD UI
+  // DASHBOARD
   // ==================================================
 
   return (
-
     <div className="dashboard">
 
-      {/* ==================================================
-          SIDEBAR
-      ================================================== */}
+      {/* SIDEBAR */}
 
       <aside className="sidebar">
 
         <div className="sidebar-brand">
 
-          <div className="brand-mark">
-            <Sparkles size={22} />
+          <div className="brand-logo">
+            <span>B</span>
           </div>
 
           <div>
-
-            <h2>
-              BrandForge
-            </h2>
-
+            <h2>BrandForge</h2>
             <span>
-              AI BRAND INTELLIGENCE
+              AI Brand Intelligence
             </span>
-
           </div>
 
         </div>
@@ -2403,138 +2684,124 @@ function Dashboard({ onBack }) {
 
         <nav className="sidebar-nav">
 
-          {navigation.map(
-            (item) => {
+          {navigation.map((item) => {
+            const Icon = item.icon;
 
-              const Icon =
-                item.icon;
-
-              return (
-
-                <button
-                  key={item.name}
-                  className={`nav-item ${
-                    activePage ===
-                    item.name
-                      ? "active"
-                      : ""
-                  }`}
-                  onClick={() =>
-                    setActivePage(
-                      item.name
-                    )
-                  }
-                >
-
-                  <Icon size={19} />
-
-                  <span>
-                    {item.name}
-                  </span>
-
-                </button>
-
-              );
-
-            }
-          )}
+            return (
+              <button
+                key={item.name}
+                className={`nav-item ${
+                  activePage === item.name
+                    ? "active"
+                    : ""
+                }`}
+                onClick={() =>
+                  setActivePage(item.name)
+                }
+              >
+                <Icon size={19} />
+                <span>{item.name}</span>
+              </button>
+            );
+          })}
 
         </nav>
+
+        <div className="sidebar-promo">
+
+          <div className="promo-icon">
+            <Sparkles size={20} />
+          </div>
+
+          <strong>
+            Smarter Content.
+            <br />
+            Stronger Brands.
+          </strong>
+
+          <p>
+            Let AI do the heavy lifting
+            while you focus on what
+            matters.
+          </p>
+
+          <button
+            onClick={() =>
+              setActivePage("Campaigns")
+            }
+          >
+            Create Campaign
+            <ArrowRight size={15} />
+          </button>
+
+        </div>
 
         <div className="sidebar-bottom">
 
           <button
             className={`nav-item ${
-              activePage ===
-              "Settings"
+              activePage === "Settings"
                 ? "active"
                 : ""
             }`}
             onClick={() =>
-              setActivePage(
-                "Settings"
-              )
+              setActivePage("Settings")
             }
           >
-
             <Settings size={19} />
-
-            <span>
-              Settings
-            </span>
-
+            <span>Settings</span>
           </button>
 
           <button
             className="back-button"
             onClick={onBack}
           >
-
             <ArrowLeft size={18} />
-
-            <span>
-              Back to landing
-            </span>
-
+            <span>Back to landing</span>
           </button>
 
         </div>
 
       </aside>
 
-      {/* ==================================================
-          MAIN CONTENT
-      ================================================== */}
+      {/* MAIN */}
 
       <main className="dashboard-main">
 
         <header className="topbar">
 
-          <div className="breadcrumb">
+          <div className="search-box">
 
-            <span>
-              BrandForge
-            </span>
+            <Search size={18} />
 
-            <ArrowRight size={14} />
-
-            <strong>
-              {activePage}
-            </strong>
+            <input
+              placeholder="Search campaigns, content, or brands..."
+            />
 
           </div>
 
           <div className="topbar-actions">
 
-            <button className="icon-button">
-              <Search size={19} />
-            </button>
-
             <button className="icon-button notification">
-
               <Bell size={19} />
-
               <span />
-
             </button>
 
             <div className="profile">
 
               <div className="profile-avatar">
-                <User size={17} />
+                <User size={18} />
               </div>
 
               <div>
-
-                <strong>
-                  Creator
-                </strong>
-
-                <span>
-                  Admin
-                </span>
-
+                <strong>Creator</strong>
+                <span>Admin</span>
               </div>
+
+              <ChevronRight
+                size={15}
+                className="profile-chevron"
+              />
 
             </div>
 
@@ -2543,15 +2810,12 @@ function Dashboard({ onBack }) {
         </header>
 
         <div className="page-content">
-
-          {renderPage()}
-
+          <PageComponent />
         </div>
 
       </main>
 
     </div>
-
   );
 }
 
