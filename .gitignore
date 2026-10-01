@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local SQLite database
+backend/instance/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# OS files
+.DS_Store
+
+# Visual Studio / project files
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
