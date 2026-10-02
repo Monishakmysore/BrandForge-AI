@@ -45,9 +45,14 @@ CORS(
 # DATABASE CONFIGURATION
 # --------------------------------------------------
 
-app.config["SQLALCHEMY_DATABASE_URI"] = (
+# Railway provides MYSQL_URL for the MySQL service.
+# When running locally, the local MySQL connection is used.
+DATABASE_URL = os.getenv(
+    "MYSQL_URL",
     "mysql+pymysql://root:Moulya@localhost/brandforge"
 )
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
