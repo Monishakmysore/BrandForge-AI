@@ -3,10 +3,14 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 import flask
+
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from models import db
 from models.brand import Brand
 from models.campaign import Campaign
 from models.content import Content
+from models.user import User
 
 
 # --------------------------------------------------
@@ -41,7 +45,9 @@ CORS(
 # DATABASE CONFIGURATION
 # --------------------------------------------------
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:Moulya@localhost/brandforge"
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    "mysql+pymysql://root:Moulya@localhost/brandforge"
+)
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -86,6 +92,169 @@ def test_db():
         "status": "success",
         "message": "Database connected successfully!",
         "brands": count
+    })
+
+
+# ==================================================
+# USER / AUTHENTICATION APIs
+# ==================================================
+
+# --------------------------------------------------
+# REGISTER USER
+# --------------------------------------------------
+
+@app.route("/api/register", methods=["POST"])
+def register_user():
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({
+            "status": "error",
+            "message": "No JSON data provided"
+        }), 400
+
+    name = data.get("name", "").strip()
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not name:
+        return jsonify({
+            "status": "error",
+            "message": "Name is required"
+        }), 400
+
+    if not email:
+        return jsonify({
+            "status": "error",
+            "message": "Email is required"
+        }), 400
+
+    if not password:
+        return jsonify({
+            "status": "error",
+            "message": "Password is required"
+        }), 400
+
+    # Check whether email already exists
+    existing_user = User.query.filter_by(
+        email=email
+    ).first()
+
+    if existing_user:
+        return jsonify({
+            "status": "error",
+            "message": "Email is already registered"
+        }), 409
+
+    # Hash password before saving
+    hashed_password = generate_password_hash(password)
+
+    user = User(
+        name=name,
+        email=email,
+        password=hashed_password,
+        role="user"
+    )
+
+    try:
+
+        db.session.add(user)
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "Registration successful!",
+            "user": user.to_dict()
+        }), 201
+
+    except Exception as e:
+
+        db.session.rollback()
+
+        return jsonify({
+            "status": "error",
+            "message": "Registration failed",
+            "error": str(e)
+        }), 500
+
+
+# --------------------------------------------------
+# LOGIN USER
+# --------------------------------------------------
+
+@app.route("/api/login", methods=["POST"])
+def login_user():
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({
+            "status": "error",
+            "message": "No JSON data provided"
+        }), 400
+
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not email:
+        return jsonify({
+            "status": "error",
+            "message": "Email is required"
+        }), 400
+
+    if not password:
+        return jsonify({
+            "status": "error",
+            "message": "Password is required"
+        }), 400
+
+    # Find user by email
+    user = User.query.filter_by(
+        email=email
+    ).first()
+
+    if not user:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid email or password"
+        }), 401
+
+    # Check password
+    if not check_password_hash(
+        user.password,
+        password
+    ):
+        return jsonify({
+            "status": "error",
+            "message": "Invalid email or password"
+        }), 401
+
+    return jsonify({
+        "status": "success",
+        "message": "Login successful!",
+        "user": user.to_dict()
+    }), 200
+
+
+# --------------------------------------------------
+# GET ALL USERS
+# --------------------------------------------------
+
+@app.route("/api/users", methods=["GET"])
+def get_users():
+
+    users = User.query.order_by(
+        User.created_at.desc()
+    ).all()
+
+    return jsonify({
+        "status": "success",
+        "count": len(users),
+        "users": [
+            user.to_dict()
+            for user in users
+        ]
     })
 
 
@@ -361,7 +530,6 @@ def get_campaign(campaign_id):
     })
 
 
-
 # --------------------------------------------------
 # ACTUAL UPDATE CAMPAIGN ROUTE
 # --------------------------------------------------
@@ -425,10 +593,6 @@ def update_campaign_data(campaign_id):
 @app.route("/api/generate-content", methods=["POST"])
 def generate_content():
 
-    # --------------------------------------------------
-    # GET REQUEST DATA
-    # --------------------------------------------------
-
     data = request.get_json()
 
     if not data:
@@ -445,10 +609,6 @@ def generate_content():
             "message": "campaign_id is required"
         }), 400
 
-    # --------------------------------------------------
-    # GET CAMPAIGN
-    # --------------------------------------------------
-
     campaign = db.session.get(
         Campaign,
         campaign_id
@@ -460,10 +620,6 @@ def generate_content():
             "message": "Campaign not found"
         }), 404
 
-    # --------------------------------------------------
-    # GET BRAND
-    # --------------------------------------------------
-
     brand = db.session.get(
         Brand,
         campaign.brand_id
@@ -474,10 +630,6 @@ def generate_content():
             "status": "error",
             "message": "Brand not found"
         }), 404
-
-    # --------------------------------------------------
-    # BRAND INFORMATION
-    # --------------------------------------------------
 
     brand_name = brand.name
 
@@ -499,10 +651,6 @@ def generate_content():
         campaign.idea
         or "Create meaningful impact."
     )
-
-    # --------------------------------------------------
-    # DEMO AI CONTENT
-    # --------------------------------------------------
 
     instagram_content = (
         f"🌱 {key_message}\n\n"
@@ -536,10 +684,6 @@ def generate_content():
         "linkedin": linkedin_content,
         "x": x_content
     }
-
-    # --------------------------------------------------
-    # SAVE CONTENT TO DATABASE
-    # --------------------------------------------------
 
     created_content = []
 
@@ -580,10 +724,6 @@ def generate_content():
             "message": "Failed to save generated content.",
             "error": str(e)
         }), 500
-
-    # --------------------------------------------------
-    # RETURN GENERATED CONTENT
-    # --------------------------------------------------
 
     return jsonify({
         "status": "success",
@@ -728,4 +868,3 @@ if __name__ == "__main__":
         debug=True,
         port=5001
     )
-

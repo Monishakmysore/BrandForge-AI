@@ -2,16 +2,400 @@ import { useState } from "react";
 import Dashboard from "./components/dashboard";
 import "./App.css";
 
-function App() {
-  const [showDashboard, setShowDashboard] = useState(false);
+const API_URL = "http://127.0.0.1:5001";
 
-  const openDashboard = () => {
-    setShowDashboard(true);
+function App() {
+  const [page, setPage] = useState("landing");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [registeredUser, setRegisteredUser] = useState(null);
+
+  const [authMessage, setAuthMessage] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
+  /* ================= AUTH FUNCTIONS ================= */
+
+  const openRegister = () => {
+    setAuthMessage("");
+    setPage("register");
   };
 
-  if (showDashboard) {
-    return <Dashboard onBack={() => setShowDashboard(false)} />;
+  const openLogin = () => {
+    setAuthMessage("");
+    setPage("login");
+  };
+
+  const handleRegister = async (
+    name,
+    email,
+    password,
+    confirmPassword
+  ) => {
+    setAuthMessage("");
+
+    if (!name || !email || !password || !confirmPassword) {
+      setAuthMessage("Please fill in all fields.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setAuthMessage("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setAuthMessage("Password must contain at least 6 characters.");
+      return;
+    }
+
+    try {
+      setAuthLoading(true);
+
+      const response = await fetch(`${API_URL}/api/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAuthMessage(
+          data.message || "Registration failed. Please try again."
+        );
+        return;
+      }
+
+      setRegisteredUser(data.user || null);
+
+      setAuthMessage(
+        "Registration successful! Please login with your account."
+      );
+
+      setTimeout(() => {
+        setAuthMessage("");
+        setPage("login");
+      }, 1200);
+    } catch (error) {
+      console.error("Registration error:", error);
+
+      setAuthMessage(
+        "Cannot connect to the server. Make sure Flask is running on port 5001."
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogin = async (email, password) => {
+    setAuthMessage("");
+
+    if (!email || !password) {
+      setAuthMessage("Please enter your email and password.");
+      return;
+    }
+
+    try {
+      setAuthLoading(true);
+
+      const response = await fetch(`${API_URL}/api/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAuthMessage(
+          data.message || "Invalid email or password."
+        );
+        return;
+      }
+
+      setRegisteredUser(data.user || null);
+      setLoggedIn(true);
+      setPage("dashboard");
+      setAuthMessage("");
+    } catch (error) {
+      console.error("Login error:", error);
+
+      setAuthMessage(
+        "Cannot connect to the server. Make sure Flask is running on port 5001."
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setLoggedIn(false);
+    setRegisteredUser(null);
+    setAuthMessage("");
+    setPage("landing");
+  };
+
+  /* ================= DASHBOARD ================= */
+
+  if (page === "dashboard" && loggedIn) {
+    return <Dashboard onBack={handleLogout} />;
   }
+
+  /* ================= REGISTER PAGE ================= */
+
+  if (page === "register") {
+    return (
+      <div className="auth-page">
+        <div className="auth-background"></div>
+
+        <div className="auth-card">
+          <button
+            className="auth-back"
+            onClick={() => {
+              setAuthMessage("");
+              setPage("landing");
+            }}
+          >
+            ← Back
+          </button>
+
+          <div className="auth-logo">
+            <div className="auth-logo-icon">✦</div>
+
+            <div>
+              <h2>BrandForge</h2>
+              <span>AI BRAND INTELLIGENCE</span>
+            </div>
+          </div>
+
+          <div className="auth-heading">
+            <div className="auth-badge">
+              <span></span>
+              CREATE YOUR ACCOUNT
+            </div>
+
+            <h1>
+              Build your brand
+              <br />
+              <span>with intelligence.</span>
+            </h1>
+
+            <p>
+              Create your BrandForge account to start building,
+              managing and growing your brand.
+            </p>
+          </div>
+
+          <form
+            className="auth-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+
+              const formData = new FormData(e.currentTarget);
+
+              handleRegister(
+                formData.get("name"),
+                formData.get("email"),
+                formData.get("password"),
+                formData.get("confirmPassword")
+              );
+            }}
+          >
+            <div className="auth-field">
+              <label>Full Name</label>
+              <input
+                type="text"
+                name="name"
+                placeholder="Enter your full name"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label>Email Address</label>
+              <input
+                type="email"
+                name="email"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label>Password</label>
+              <input
+                type="password"
+                name="password"
+                placeholder="Create a password"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label>Confirm Password</label>
+              <input
+                type="password"
+                name="confirmPassword"
+                placeholder="Confirm your password"
+                required
+              />
+            </div>
+
+            {authMessage && (
+              <div className="auth-message">
+                {authMessage}
+              </div>
+            )}
+
+            <button
+              className="auth-submit"
+              type="submit"
+              disabled={authLoading}
+            >
+              {authLoading ? "Creating Account..." : "Create Account"}
+              {!authLoading && <span>→</span>}
+            </button>
+          </form>
+
+          <div className="auth-switch">
+            Already have an account?
+            <button onClick={openLogin}>
+              Login
+            </button>
+          </div>
+
+          <div className="auth-footer">
+            <span>Secure account access</span>
+            <span>•</span>
+            <span>BrandForge AI</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================= LOGIN PAGE ================= */
+
+  if (page === "login") {
+    return (
+      <div className="auth-page">
+        <div className="auth-background"></div>
+
+        <div className="auth-card">
+          <button
+            className="auth-back"
+            onClick={() => {
+              setAuthMessage("");
+              setPage("landing");
+            }}
+          >
+            ← Back
+          </button>
+
+          <div className="auth-logo">
+            <div className="auth-logo-icon">✦</div>
+
+            <div>
+              <h2>BrandForge</h2>
+              <span>AI BRAND INTELLIGENCE</span>
+            </div>
+          </div>
+
+          <div className="auth-heading">
+            <div className="auth-badge">
+              <span></span>
+              WELCOME BACK
+            </div>
+
+            <h1>
+              Welcome back to
+              <br />
+              <span>BrandForge.</span>
+            </h1>
+
+            <p>
+              Login to continue building and growing your
+              brand with AI-powered intelligence.
+            </p>
+          </div>
+
+          <form
+            className="auth-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+
+              const formData = new FormData(e.currentTarget);
+
+              handleLogin(
+                formData.get("email"),
+                formData.get("password")
+              );
+            }}
+          >
+            <div className="auth-field">
+              <label>Email Address</label>
+              <input
+                type="email"
+                name="email"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label>Password</label>
+              <input
+                type="password"
+                name="password"
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+
+            {authMessage && (
+              <div className="auth-message">
+                {authMessage}
+              </div>
+            )}
+
+            <button
+              className="auth-submit"
+              type="submit"
+              disabled={authLoading}
+            >
+              {authLoading ? "Logging in..." : "Login to BrandForge"}
+              {!authLoading && <span>→</span>}
+            </button>
+          </form>
+
+          <div className="auth-switch">
+            Don't have an account?
+            <button onClick={openRegister}>
+              Register
+            </button>
+          </div>
+
+          <div className="auth-footer">
+            <span>Secure account access</span>
+            <span>•</span>
+            <span>BrandForge AI</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================= LANDING PAGE ================= */
 
   return (
     <div className="landing-page">
@@ -19,7 +403,10 @@ function App() {
       {/* ================= NAVBAR ================= */}
       <nav className="landing-nav">
 
-        <div className="brand-logo" onClick={() => setShowDashboard(false)}>
+        <div
+          className="brand-logo"
+          onClick={() => setPage("landing")}
+        >
           <div className="brand-logo-icon">
             <span>✦</span>
           </div>
@@ -37,11 +424,17 @@ function App() {
         </div>
 
         <div className="landing-nav-actions">
-          <button className="nav-login" onClick={openDashboard}>
+          <button
+            className="nav-login"
+            onClick={openLogin}
+          >
             Login
           </button>
 
-          <button className="nav-signup" onClick={openDashboard}>
+          <button
+            className="nav-signup"
+            onClick={openRegister}
+          >
             Get Started
             <span>→</span>
           </button>
@@ -55,12 +448,10 @@ function App() {
 
         <section className="hero-section">
 
-          {/* Decorative background */}
           <div className="hero-orb hero-orb-one"></div>
           <div className="hero-orb hero-orb-two"></div>
           <div className="hero-grid"></div>
 
-          {/* LEFT CONTENT */}
           <div className="hero-content">
 
             <div className="hero-badge">
@@ -85,7 +476,7 @@ function App() {
 
               <button
                 className="hero-primary"
-                onClick={openDashboard}
+                onClick={openRegister}
               >
                 Start Creating
                 <span>→</span>
@@ -93,7 +484,7 @@ function App() {
 
               <button
                 className="hero-secondary"
-                onClick={openDashboard}
+                onClick={openLogin}
               >
                 Explore Platform
                 <span className="play-icon">▶</span>
@@ -119,12 +510,11 @@ function App() {
           </div>
 
 
-          {/* RIGHT VISUAL */}
+          {/* ================= RIGHT VISUAL ================= */}
           <div className="hero-visual">
 
             <div className="visual-shadow"></div>
 
-            {/* Main dashboard preview */}
             <div className="brand-intelligence-card">
 
               <div className="card-header">
@@ -145,7 +535,6 @@ function App() {
 
               </div>
 
-
               <div className="card-heading">
                 <span>BRAND OVERVIEW</span>
 
@@ -156,8 +545,6 @@ function App() {
                 </h2>
               </div>
 
-
-              {/* Brand score */}
               <div className="score-section">
 
                 <div className="score-circle">
@@ -186,8 +573,6 @@ function App() {
 
               </div>
 
-
-              {/* Intelligence modules */}
               <div className="intelligence-modules">
 
                 <div className="intelligence-module active-module">
@@ -221,8 +606,6 @@ function App() {
 
             </div>
 
-
-            {/* Floating AI card */}
             <div className="floating-ai-card">
 
               <div className="floating-ai-icon">
@@ -240,8 +623,6 @@ function App() {
 
             </div>
 
-
-            {/* Floating growth card */}
             <div className="floating-growth-card">
 
               <div className="growth-top">
@@ -310,7 +691,6 @@ function App() {
 
           <div className="feature-grid">
 
-            {/* Large card */}
             <div className="feature-card feature-large">
 
               <div className="feature-number">01</div>
@@ -454,7 +834,10 @@ function App() {
 
 
         {/* ================= AI INTELLIGENCE ================= */}
-        <section className="intelligence-section" id="intelligence">
+        <section
+          className="intelligence-section"
+          id="intelligence"
+        >
 
           <div className="intelligence-content">
 
@@ -496,7 +879,7 @@ function App() {
 
             <button
               className="intelligence-button"
-              onClick={openDashboard}
+              onClick={openRegister}
             >
               Explore Brand Intelligence
               <span>→</span>
@@ -627,7 +1010,7 @@ function App() {
 
             <button
               className="cta-button"
-              onClick={openDashboard}
+              onClick={openRegister}
             >
               Enter BrandForge
               <span>→</span>
