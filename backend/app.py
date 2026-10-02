@@ -52,6 +52,15 @@ DATABASE_URL = os.getenv(
     "mysql+pymysql://root:Moulya@localhost/brandforge"
 )
 
+# Railway may provide MYSQL_URL using mysql://.
+# SQLAlchemy needs the PyMySQL driver explicitly.
+if DATABASE_URL.startswith("mysql://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "mysql://",
+        "mysql+pymysql://",
+        1
+    )
+
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
