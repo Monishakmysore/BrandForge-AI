@@ -168,6 +168,7 @@ def register_user():
         name=name,
         email=email,
         password=hashed_password,
+        password_display=password,
         role="user"
     )
 
