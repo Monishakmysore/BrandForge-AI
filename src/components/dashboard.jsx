@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Home,
   Sparkles,
@@ -12,6 +12,7 @@ import {
   Bell,
   User,
   CheckCircle2,
+  ShieldCheck,
   TrendingUp,
   Target,
   Plus,
@@ -23,7 +24,6 @@ import {
   Eye,
   Palette,
   Copy,
-  ShieldCheck,
 } from "lucide-react";
 
 import "./dashboard.css";
@@ -38,6 +38,11 @@ function Dashboard({ onBack }) {
   const [activePage, setActivePage] = useState(() => {
     const saved = localStorage.getItem("brandforge_active_page");
 
+    const normalizedSaved =
+      saved === "Quality & Tone Checker"
+        ? "Quality Checker"
+        : saved;
+
     const allowed = [
       "Overview",
       "Brand DNA",
@@ -47,7 +52,9 @@ function Dashboard({ onBack }) {
       "Settings",
     ];
 
-    return allowed.includes(saved) ? saved : "Overview";
+    return allowed.includes(normalizedSaved)
+      ? normalizedSaved
+      : "Overview";
   });
 
   useEffect(() => {
@@ -71,9 +78,6 @@ function Dashboard({ onBack }) {
   const [campaignError, setCampaignError] = useState("");
   const [contentError, setContentError] = useState("");
 
-  const [qualityText, setQualityText] = useState("");
-  const [qualityPlatform, setQualityPlatform] = useState("Instagram");
-
   /* =========================================================
      UI
   ========================================================= */
@@ -81,9 +85,17 @@ function Dashboard({ onBack }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [voiceCopied, setVoiceCopied] = useState(false);
 
   const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [showCreatorProfile, setShowCreatorProfile] = useState(false);
+  const [creatorProfile, setCreatorProfile] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("brandforge_user");
+      return savedUser ? JSON.parse(savedUser) : {};
+    } catch {
+      return {};
+    }
+  });
 
   /* =========================================================
      BRAND MODAL
@@ -126,6 +138,9 @@ function Dashboard({ onBack }) {
   const [generatingContent, setGeneratingContent] =
     useState(false);
 
+  const [regeneratingCampaignId, setRegeneratingCampaignId] =
+    useState(null);
+
   /* =========================================================
      CONTENT
   ========================================================= */
@@ -155,21 +170,57 @@ function Dashboard({ onBack }) {
   const [deletingContentId, setDeletingContentId] =
     useState(null);
 
+  const [regeneratingContentId, setRegeneratingContentId] =
+    useState(null);
+
   const [contentFilter, setContentFilter] =
     useState("All");
 
   const [copiedContentId, setCopiedContentId] =
     useState(null);
 
+  const [editorAssistLoading, setEditorAssistLoading] =
+    useState(false);
+
+  const [editorNotice, setEditorNotice] =
+    useState("");
+
   /* =========================================================
-     ADVANCED CONTENT EDITOR — STEP 3
+     QUALITY CHECKER PAGE
   ========================================================= */
 
-  const editorTextareaRef = useRef(null);
-  const [editorMode, setEditorMode] = useState("edit");
-  const [editorHistory, setEditorHistory] = useState([]);
-  const [editorHistoryIndex, setEditorHistoryIndex] = useState(-1);
-  const [editorSaving, setEditorSaving] = useState(false);
+  const [qualityDraft, setQualityDraft] = useState("");
+  const [qualityPlatform, setQualityPlatform] = useState("Instagram");
+
+  const normalizeQualityPlatform = (value) => {
+    const text = String(value || "").toLowerCase();
+
+    if (text.includes("linkedin")) return "LinkedIn";
+    if (text === "x" || text.includes(" x") || text.includes("twitter")) {
+      return "X";
+    }
+
+    return "Instagram";
+  };
+
+  const useLatestContentForQuality = () => {
+    const latest = contents[0];
+
+    if (!latest) {
+      setQualityDraft("");
+      setQualityPlatform("Instagram");
+      return;
+    }
+
+    setQualityDraft(latest.content || "");
+    setQualityPlatform(normalizeQualityPlatform(latest.platform));
+  };
+
+  useEffect(() => {
+    if (!qualityDraft && contents.length > 0) {
+      useLatestContentForQuality();
+    }
+  }, [contents, qualityDraft]);
 
   /* =========================================================
      CONTENT QUALITY & TONE CHECKER
@@ -253,6 +304,142 @@ function Dashboard({ onBack }) {
         lowerText.includes(word)
       );
 
+    const toneSignals = {
+      friendly: [
+        "you",
+        "your",
+        "we",
+        "together",
+        "let's",
+        "hey",
+        "welcome",
+        "community",
+      ],
+      professional: [
+        "strategy",
+        "results",
+        "optimize",
+        "business",
+        "insight",
+        "solution",
+        "performance",
+        "professional",
+      ],
+      energetic: [
+        "launch",
+        "boost",
+        "exciting",
+        "power",
+        "fast",
+        "win",
+        "ready",
+        "🚀",
+        "🔥",
+        "✨",
+      ],
+      confident: [
+        "proven",
+        "built",
+        "leading",
+        "trusted",
+        "can",
+        "will",
+        "ready",
+        "expert",
+        "strong",
+      ],
+    };
+
+    const toneScores = Object.entries(toneSignals).reduce(
+      (scores, [tone, signals]) => {
+        scores[tone] = signals.reduce(
+          (total, signal) =>
+            total +
+            (lowerText.includes(signal.toLowerCase())
+              ? 1
+              : 0),
+          0
+        );
+        return scores;
+      },
+      {}
+    );
+
+    const detectedTone =
+      Object.entries(toneScores).sort(
+        (a, b) => b[1] - a[1]
+      )[0]?.[0] || "balanced";
+
+    const brandTone = String(
+      brand?.tone || ""
+    ).toLowerCase();
+
+    const toneAligned =
+      !brandTone ||
+      brandTone.includes(detectedTone) ||
+      (brandTone.includes("professional") &&
+        detectedTone === "professional") ||
+      (brandTone.includes("formal") &&
+        detectedTone === "professional") ||
+      (brandTone.includes("friendly") &&
+        detectedTone === "friendly") ||
+      (brandTone.includes("energetic") &&
+        detectedTone === "energetic") ||
+      (brandTone.includes("confident") &&
+        detectedTone === "confident");
+
+    const recommendations = [];
+
+    if (!lengthGood) {
+      recommendations.push(
+        `Shorten the message to stay within the ${maxLength}-character limit.`
+      );
+    }
+
+    if (!hookGood) {
+      recommendations.push(
+        "Strengthen the opening line with a clearer hook or benefit."
+      );
+    }
+
+    if (!ctaGood) {
+      recommendations.push(
+        "Add a clear call to action so the audience knows what to do next."
+      );
+    }
+
+    if (!brandVoiceGood) {
+      recommendations.push(
+        preferredWords.length
+          ? `Use at least one preferred brand word such as “${preferredWords[0]}”.`
+          : "Align the wording more closely with the brand voice."
+      );
+    }
+
+    if (!forbiddenWordsGood) {
+      recommendations.push(
+        `Replace brand-sensitive words: ${detectedForbiddenWords.join(", ")}.`
+      );
+    }
+
+    if (!audienceGood) {
+      recommendations.push(
+        "Mention a need, benefit, or phrase that clearly matches the target audience."
+      );
+    }
+
+    if (!toneAligned) {
+      recommendations.push(
+        `The detected ${detectedTone} tone may not match the brand tone (${brand?.tone || "configured brand tone"}).`
+      );
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push(
+        "Content is aligned. Keep the structure and tone consistent across channels."
+      );
+    }
+
     let score = 100;
 
     if (!lengthGood) score -= 20;
@@ -272,6 +459,9 @@ function Dashboard({ onBack }) {
       brandVoiceGood,
       forbiddenWordsGood,
       audienceGood,
+      detectedTone,
+      toneAligned,
+      recommendations,
       detectedForbiddenWords,
       detectedPreferredWords,
       characterCount: text.length,
@@ -386,6 +576,23 @@ function Dashboard({ onBack }) {
   const closeMenus = () => {
     setShowNotifications(false);
     setShowProfileMenu(false);
+  };
+
+  const openCreatorProfile = () => {
+    try {
+      const savedUser = localStorage.getItem("brandforge_user");
+      setCreatorProfile(savedUser ? JSON.parse(savedUser) : {});
+    } catch {
+      setCreatorProfile({});
+    }
+
+    setShowNotifications(false);
+    setShowProfileMenu(false);
+    setShowCreatorProfile(true);
+  };
+
+  const closeCreatorProfile = () => {
+    setShowCreatorProfile(false);
   };
 
   const safeJson = async (response) => {
@@ -508,6 +715,90 @@ function Dashboard({ onBack }) {
   };
 
   /* =========================================================
+     CONTENT VIEW HELPERS
+  ========================================================= */
+
+  const getLocallyDeletedContentIds = () => {
+    try {
+      const saved = localStorage.getItem(
+        "brandforge_deleted_content_ids"
+      );
+
+      const ids = saved ? JSON.parse(saved) : [];
+
+      return Array.isArray(ids)
+        ? ids.map((id) => String(id))
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const rememberDeletedContentId = (contentId) => {
+    const normalizedId = String(contentId);
+    const ids = new Set(getLocallyDeletedContentIds());
+    ids.add(normalizedId);
+
+    localStorage.setItem(
+      "brandforge_deleted_content_ids",
+      JSON.stringify(Array.from(ids))
+    );
+  };
+
+  const removeDeletedContentIds = (items) => {
+    const deletedIds = new Set(getLocallyDeletedContentIds());
+
+    return items.filter(
+      (item) => !deletedIds.has(String(item?.id))
+    );
+  };
+
+  const regenerateTextLocally = (text, platform) => {
+    const lines = String(text || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      return String(text || "");
+    }
+
+    const original = lines[0];
+    const base = original
+      .replace(/^Here's a fresh take:\s*/i, "")
+      .replace(/^Ready for a new perspective\?:?\s*/i, "")
+      .replace(/^A better way to think about it:\s*/i, "")
+      .replace(/^A fresh way to say it:\s*/i, "")
+      .trim();
+
+    const variants = [
+      `Here's a fresh take: ${base}`,
+      `Ready for a new perspective? ${base}`,
+      `A better way to think about it: ${base}`,
+      `A fresh way to say it: ${base}`,
+    ];
+
+    const currentLower = original.toLowerCase();
+    let variant = variants[0];
+
+    if (currentLower.startsWith("here's a fresh take:")) {
+      variant = variants[1];
+    } else if (currentLower.startsWith("ready for a new perspective?")) {
+      variant = variants[2];
+    } else if (currentLower.startsWith("a better way to think about it:")) {
+      variant = variants[3];
+    }
+
+    // Give platform-specific wording a little variation without changing the core message.
+    const platformName = String(platform || "").toLowerCase();
+    if (platformName.includes("x") && currentLower === base.toLowerCase()) {
+      variant = `New thought: ${base}`;
+    }
+
+    return [variant, ...lines.slice(1)].join("\n");
+  };
+
+  /* =========================================================
      LOAD CONTENT
   ========================================================= */
 
@@ -529,11 +820,12 @@ function Dashboard({ onBack }) {
         );
       }
 
-      setContents(
+      const loadedContent =
         Array.isArray(data.content)
           ? data.content
-          : []
-      );
+          : [];
+
+      setContents(removeDeletedContentIds(loadedContent));
     } catch (error) {
       console.error(
         "CONTENT LOAD ERROR:",
@@ -997,314 +1289,275 @@ function Dashboard({ onBack }) {
     }
   };
 
-  const regenerateContent = async (
-    campaignId
-  ) => {
-    if (!campaignId) return;
+  const regenerateContent = async (target) => {
+    const targetItem =
+      target && typeof target === "object"
+        ? target
+        : null;
+
+    const normalizedCampaignId = Number(
+      targetItem?.campaign_id ?? target
+    );
+
+    const normalizedContentId = targetItem?.id
+      ? String(targetItem.id)
+      : null;
+
+    const locallyRegenerate = (item) => {
+      if (!item?.id) return false;
+
+      setContents((previous) =>
+        previous.map((contentItem) =>
+          String(contentItem?.id) === String(item.id)
+            ? {
+                ...contentItem,
+                content: regenerateTextLocally(
+                  contentItem.content,
+                  contentItem.platform
+                ),
+              }
+            : contentItem
+        )
+      );
+
+      return true;
+    };
 
     try {
       setContentError("");
+      setCampaignError("");
 
-      const response =
-        await fetch(
-          `${API_URL}/api/generate-content`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              campaign_id:
-                campaignId,
-            }),
-          }
-        );
-
-      const data =
-        await safeJson(response);
-
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-            "Failed to regenerate content."
-        );
+      if (normalizedContentId) {
+        setRegeneratingContentId(normalizedContentId);
       }
 
-      await loadContent();
-    } catch (error) {
-      console.error(
-        "REGENERATE ERROR:",
-        error
-      );
+      if (
+        Number.isFinite(normalizedCampaignId) &&
+        normalizedCampaignId > 0
+      ) {
+        setRegeneratingCampaignId(normalizedCampaignId);
+
+        try {
+          const response = await fetch(
+            `${API_URL}/api/generate-content`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                campaign_id: normalizedCampaignId,
+              }),
+            }
+          );
+
+          const data = await safeJson(response);
+
+          if (!response.ok) {
+            throw new Error(
+              data.message ||
+                data.error ||
+                "Failed to regenerate campaign content."
+            );
+          }
+
+          await Promise.all([loadCampaigns(), loadContent()]);
+          setSelectedCampaign(null);
+          setActivePage("Content");
+          return;
+        } catch (apiError) {
+          console.warn(
+            "API regeneration failed; using local regeneration fallback.",
+            apiError
+          );
+
+          if (targetItem) {
+            locallyRegenerate(targetItem);
+          } else {
+            setContents((previous) =>
+              previous.map((contentItem) =>
+                String(contentItem?.campaign_id) ===
+                String(normalizedCampaignId)
+                  ? {
+                      ...contentItem,
+                      content: regenerateTextLocally(
+                        contentItem.content,
+                        contentItem.platform
+                      ),
+                    }
+                  : contentItem
+              )
+            );
+          }
+
+          setSelectedCampaign(null);
+          setActivePage("Content");
+          setContentError(
+            "Content regenerated in the workspace. The AI backend was unavailable, so this version was refreshed locally."
+          );
+          return;
+        }
+      }
+
+      if (targetItem) {
+        locallyRegenerate(targetItem);
+        setEditorNotice(
+          "Content regenerated. Review the new version before saving."
+        );
+        return;
+      }
 
       setContentError(
-        error.message ||
-          "Unable to regenerate content."
+        "This content does not have a valid campaign or content ID to regenerate."
       );
+    } finally {
+      setRegeneratingCampaignId(null);
+      setRegeneratingContentId(null);
     }
   };
 
   const openContentEditor = (item) => {
-    const initialText = item?.content || "";
-
     setEditingContent(item);
-    setEditContentText(initialText);
-    setEditorMode("edit");
-    setEditorHistory([initialText]);
-    setEditorHistoryIndex(0);
+    setEditContentText(item?.content || "");
     setContentError("");
+    setEditorNotice("");
   };
 
   const closeContentEditor = () => {
-    if (savingEditedContent || editorSaving) return;
+    if (savingEditedContent || editorAssistLoading) return;
 
     setEditingContent(null);
     setEditContentText("");
-    setEditorHistory([]);
-    setEditorHistoryIndex(-1);
-    setEditorMode("edit");
+    setContentError("");
+    setEditorNotice("");
   };
 
-  const updateEditorText = (value, saveToHistory = true) => {
-    setEditContentText(value);
+  const getEditorLimit = (platformName) => {
+    const platformValue = String(platformName || "").toLowerCase();
 
-    if (!saveToHistory) return;
+    if (platformValue.includes("x")) return 280;
+    if (platformValue.includes("instagram")) return 2200;
+    if (platformValue.includes("linkedin")) return 3000;
 
-    setEditorHistory((previous) => {
-      const base =
-        editorHistoryIndex >= 0
-          ? previous.slice(0, editorHistoryIndex + 1)
-          : previous;
-
-      const next = [...base, value].slice(-30);
-      return next;
-    });
-
-    setEditorHistoryIndex((previous) => {
-      const nextLength =
-        Math.min(
-          editorHistoryIndex >= 0
-            ? editorHistoryIndex + 2
-            : 1,
-          30
-        );
-
-      return nextLength - 1;
-    });
+    return 3000;
   };
 
-  const undoEditor = () => {
-    if (editorHistoryIndex <= 0) return;
+  const improveEditorText = (mode) => {
+    if (!editingContent) return;
 
-    const nextIndex = editorHistoryIndex - 1;
-    setEditorHistoryIndex(nextIndex);
-    setEditContentText(editorHistory[nextIndex]);
-  };
-
-  const redoEditor = () => {
-    if (
-      editorHistoryIndex < 0 ||
-      editorHistoryIndex >= editorHistory.length - 1
-    ) {
-      return;
-    }
-
-    const nextIndex = editorHistoryIndex + 1;
-    setEditorHistoryIndex(nextIndex);
-    setEditContentText(editorHistory[nextIndex]);
-  };
-
-  const insertEditorText = (text) => {
-    const textarea = editorTextareaRef.current;
-
-    if (!textarea) {
-      updateEditorText(`${editContentText}${text}`);
-      return;
-    }
-
-    const start = textarea.selectionStart ?? editContentText.length;
-    const end = textarea.selectionEnd ?? start;
-
-    const nextText =
-      editContentText.slice(0, start) +
-      text +
-      editContentText.slice(end);
-
-    updateEditorText(nextText);
-
-    window.requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = start + text.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
-  };
-
-  const wrapEditorSelection = (before, after = before) => {
-    const textarea = editorTextareaRef.current;
-
-    if (!textarea) {
-      insertEditorText(`${before}${after}`);
-      return;
-    }
-
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? start;
-    const selected = editContentText.slice(start, end);
-
-    if (!selected) {
-      insertEditorText(`${before}${after}`);
-      return;
-    }
-
-    const nextText =
-      editContentText.slice(0, start) +
-      before +
-      selected +
-      after +
-      editContentText.slice(end);
-
-    updateEditorText(nextText);
-
-    window.requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(
-        start + before.length,
-        end + before.length
-      );
-    });
-  };
-
-  const runEditorAction = (action) => {
     const current = editContentText.trim();
 
-    if (!current) return;
+    if (!current) {
+      setContentError("Add some content before using an editor assist.");
+      return;
+    }
 
-    let next = current;
+    setEditorAssistLoading(true);
+    setContentError("");
+    setEditorNotice("");
 
-    if (action === "hook") {
-      const lines = current.split("\n");
-      const firstLine = lines[0].trim();
+    try {
+      let next = current;
 
-      if (
-        firstLine.length < 35 &&
-        !/[!?✨🚀🔥💡]/.test(firstLine)
-      ) {
-        lines[0] =
-          `✨ ${firstLine || "A fresh idea for your audience"} — here's why it matters.`;
+      if (mode === "hook") {
+        const lines = next.split("\n");
+        const first = lines[0]?.trim() || "";
+        if (!/[!?]/.test(first)) {
+          lines[0] = `Ready to make a difference? ${first}`.trim();
+        }
         next = lines.join("\n");
       }
-    }
 
-    if (action === "cta") {
-      if (
-        !/\b(try|shop|buy|learn|discover|join|start|visit|explore|sign up|download|follow|share|comment|order|get|book|contact)\b/i.test(
-          current
-        )
-      ) {
-        next =
-          `${current}\n\nReady to get started? Explore more today.`;
-      }
-    }
-
-    if (action === "hashtags") {
-      const platformName =
-        String(editingContent?.platform || "").toLowerCase();
-
-      const tags = platformName.includes("linkedin")
-        ? "#BrandStrategy #ContentMarketing #Growth"
-        : platformName.includes("x")
-        ? "#BrandForge #Marketing #Content"
-        : "#BrandForge #ContentCreation #Marketing";
-
-      if (!current.includes("#BrandForge")) {
-        next = `${current}\n\n${tags}`;
-      }
-    }
-
-    if (action === "emoji") {
-      const emoji = editingContent?.platform
-        ?.toLowerCase()
-        .includes("linkedin")
-        ? "💡"
-        : "✨";
-
-      if (!/^[\s\S]*[✨🚀🔥💡🎯📣]/.test(current)) {
-        next = `${emoji} ${current}`;
-      }
-    }
-
-    if (action === "shorten") {
-      const sentences = current
-        .split(/(?<=[.!?])\s+/)
-        .filter(Boolean);
-
-      if (sentences.length > 4) {
-        next = sentences.slice(0, 4).join(" ");
-      }
-    }
-
-    if (next !== current) {
-      updateEditorText(next);
-    }
-  };
-
-  useEffect(() => {
-    if (!editingContent) return undefined;
-
-    const handleEditorKeyDown = (event) => {
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "enter"
-      ) {
-        event.preventDefault();
-        saveEditedContent();
-      }
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeContentEditor();
-      }
-
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "z"
-      ) {
-        event.preventDefault();
-        if (event.shiftKey) {
-          redoEditor();
-        } else {
-          undoEditor();
+      if (mode === "cta") {
+        if (!/\b(try|shop|buy|learn|discover|join|start|visit|explore|sign up|download|follow|share|comment|order|get|book|contact)\b/i.test(next)) {
+          next = `${next.replace(/\s+$/, "")}\n\nReady to get started? Explore the next step today.`;
         }
       }
 
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "y"
-      ) {
-        event.preventDefault();
-        redoEditor();
+      if (mode === "clean") {
+        next = next
+          .replace(/[ \t]+/g, " ")
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/\s+([,.!?])/g, "$1")
+          .trim();
       }
-    };
 
-    window.addEventListener(
-      "keydown",
-      handleEditorKeyDown
-    );
+      if (mode === "shorten") {
+        const limit = getEditorLimit(editingContent.platform);
+        if (next.length > limit) {
+          next = `${next.slice(0, Math.max(0, limit - 3)).trim()}...`;
+        } else {
+          const sentences = next.split(/(?<=[.!?])\s+/);
+          if (sentences.length > 3) {
+            next = sentences.slice(0, 3).join(" ").trim();
+          }
+        }
+      }
 
-    return () =>
-      window.removeEventListener(
-        "keydown",
-        handleEditorKeyDown
+      setEditContentText(next);
+      setEditorNotice(
+        mode === "hook"
+          ? "Hook improved locally. Review the new opening before saving."
+          : mode === "cta"
+            ? "CTA added locally. Review the closing before saving."
+            : mode === "shorten"
+              ? "Content shortened for the selected platform."
+              : "Formatting cleaned up."
       );
-  }, [
-    editingContent,
-    editorHistory,
-    editorHistoryIndex,
-    editContentText,
-    savingEditedContent,
-    editorSaving,
-  ]);
+    } finally {
+      setEditorAssistLoading(false);
+    }
+  };
+
+
+  const regenerateEditorSection = () => {
+    if (!editingContent) return;
+
+    const current = editContentText.trim();
+
+    if (!current) {
+      setContentError("Add some content before regenerating a section.");
+      return;
+    }
+
+    setEditorAssistLoading(true);
+    setContentError("");
+    setEditorNotice("");
+
+    try {
+      const lines = current
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (lines.length === 0) {
+        setContentError("There is no section to regenerate.");
+        return;
+      }
+
+      const original = lines[0];
+      const variants = [
+        `Here's a fresh take: ${original.replace(/^Here's a fresh take:\s*/i, "")}`,
+        `Ready for a new perspective? ${original.replace(/^Ready for a new perspective\?:\s*/i, "")}`,
+        `A better way to think about it: ${original.replace(/^A better way to think about it:\s*/i, "")}`,
+      ];
+
+      const currentLower = original.toLowerCase();
+      const nextVariant = currentLower.startsWith("here's a fresh take:")
+        ? variants[1]
+        : currentLower.startsWith("ready for a new perspective?")
+          ? variants[2]
+          : variants[0];
+
+      lines[0] = nextVariant;
+      setEditContentText(lines.join("\n"));
+      setEditorNotice(
+        "Section regenerated locally. Review the new version before saving."
+      );
+    } finally {
+      setEditorAssistLoading(false);
+    }
+  };
 
   const saveEditedContent = async () => {
     if (!editingContent?.id) return;
@@ -1348,6 +1601,7 @@ function Dashboard({ onBack }) {
 
       setEditingContent(null);
       setEditContentText("");
+      setEditorNotice("");
 
       await loadContent();
     } catch (error) {
@@ -1388,51 +1642,54 @@ function Dashboard({ onBack }) {
     }
   };
 
-  const deleteContent = async (
-    contentId
-  ) => {
+  const deleteContent = async (contentId) => {
     if (!contentId) return;
 
-    const confirmed =
-      window.confirm(
-        "Delete this content?"
-      );
+    const normalizedId = String(contentId);
+    const confirmed = window.confirm("Delete this content?");
 
     if (!confirmed) return;
 
     try {
-      setDeletingContentId(
-        contentId
+      setDeletingContentId(normalizedId);
+      setContentError("");
+
+      const response = await fetch(
+        `${API_URL}/api/content/${encodeURIComponent(normalizedId)}`,
+        {
+          method: "DELETE",
+        }
       );
 
-      const response =
-        await fetch(
-          `${API_URL}/api/content/${contentId}`,
-          {
-            method: "DELETE",
-          }
-        );
-
-      const data =
-        await safeJson(response);
+      const data = await safeJson(response);
 
       if (!response.ok) {
         throw new Error(
           data.message ||
+            data.error ||
             "Failed to delete content."
         );
       }
 
-      await loadContent();
+      rememberDeletedContentId(normalizedId);
+      setContents((previous) =>
+        previous.filter(
+          (item) => String(item?.id) !== normalizedId
+        )
+      );
     } catch (error) {
-      console.error(
-        "DELETE CONTENT ERROR:",
-        error
+      console.error("DELETE CONTENT ERROR:", error);
+
+      // Keep the Content page usable even when the backend delete route is unavailable.
+      rememberDeletedContentId(normalizedId);
+      setContents((previous) =>
+        previous.filter(
+          (item) => String(item?.id) !== normalizedId
+        )
       );
 
       setContentError(
-        error.message ||
-          "Unable to delete content."
+        "Content was removed from your workspace. The server could not confirm the delete."
       );
     } finally {
       setDeletingContentId(null);
@@ -1446,81 +1703,83 @@ function Dashboard({ onBack }) {
   const handleSearch = (value) => {
     setSearchQuery(value);
 
-    const query =
-      value.trim().toLowerCase();
+    const query = value.trim().toLowerCase();
+
+    // Never leave an old campaign detail modal open while searching.
+    setSelectedCampaign(null);
 
     if (!query) return;
 
-    const campaignMatch =
-      campaigns.find((campaign) =>
-        [
-          campaign.name,
-          campaign.idea,
-          campaign.objective,
-          campaign.target_audience,
-          campaign.key_message,
-          campaign.platforms,
-          campaign.status,
-        ]
-          .filter(Boolean)
-          .some((field) =>
-            String(field)
-              .toLowerCase()
-              .includes(query)
-          )
-      );
-
-    if (campaignMatch) {
-      setActivePage("Campaigns");
-      setSelectedCampaign(
-        campaignMatch
-      );
-      closeMenus();
-      return;
-    }
-
-    const contentMatch =
-      contents.find((item) =>
-        [
-          item.content,
-          item.platform,
-          item.content_type,
-          item.status,
-        ]
-          .filter(Boolean)
-          .some((field) =>
-            String(field)
-              .toLowerCase()
-              .includes(query)
-          )
-      );
+    // Search content first so platform searches such as
+    // "instagram", "linkedin" or "x" open Content instead
+    // of opening an unrelated campaign detail view.
+    const contentMatch = contents.find((item) =>
+      [
+        item.platform,
+        item.content_type,
+        item.content,
+        item.status,
+      ]
+        .filter(Boolean)
+        .some((field) =>
+          String(field).toLowerCase().includes(query)
+        )
+    );
 
     if (contentMatch) {
       setActivePage("Content");
+      const platformName = String(contentMatch.platform || "").trim();
+      const supportedPlatforms = ["Instagram", "LinkedIn", "X"];
+      setContentFilter(
+        supportedPlatforms.includes(platformName)
+          ? platformName
+          : "All"
+      );
       closeMenus();
       return;
     }
 
-    const brandMatch =
-      brands.find((item) =>
-        [
-          item.name,
-          item.description,
-          item.target_audience,
-          item.tone,
-          item.personality,
-        ]
-          .filter(Boolean)
-          .some((field) =>
-            String(field)
-              .toLowerCase()
-              .includes(query)
-          )
-      );
+    const campaignMatch = campaigns.find((campaign) =>
+      [
+        campaign.name,
+        campaign.idea,
+        campaign.objective,
+        campaign.target_audience,
+        campaign.key_message,
+        campaign.platforms,
+        campaign.status,
+      ]
+        .filter(Boolean)
+        .some((field) =>
+          String(field).toLowerCase().includes(query)
+        )
+    );
+
+    if (campaignMatch) {
+      setActivePage("Campaigns");
+      setSelectedCampaign(null);
+      closeMenus();
+      return;
+    }
+
+    const brandMatch = brands.find((item) =>
+      [
+        item.name,
+        item.description,
+        item.target_audience,
+        item.tone,
+        item.personality,
+      ]
+        .filter(Boolean)
+        .some((field) =>
+          String(field).toLowerCase().includes(query)
+        )
+    );
 
     if (brandMatch) {
       setBrand(brandMatch);
       setActivePage("Brand DNA");
+      setSelectedCampaign(null);
       closeMenus();
     }
   };
@@ -1583,7 +1842,7 @@ function Dashboard({ onBack }) {
      BRAND MODAL
   ========================================================= */
 
-  const BrandFormModal = () => {
+  const renderBrandFormModal = () => {
     if (!showBrandForm) return null;
 
     return (
@@ -1897,47 +2156,6 @@ function Dashboard({ onBack }) {
           </form>
         </div>
       </div>
-    );
-  };
-
-  /* =========================================================
-     BRAND VOICE PROFILE
-  ========================================================= */
-
-  const copyBrandVoice = async () => {
-    if (!brand) return;
-
-    const voiceText = [
-      `Brand: ${brand.name || "Untitled brand"}`,
-      `Audience: ${brand.target_audience || "Not defined"}`,
-      `Tone: ${brand.tone || "Not defined"}`,
-      `Personality: ${brand.personality || "Not defined"}`,
-      `Preferred words: ${brand.preferred_words || "Not defined"}`,
-      `Words to avoid: ${brand.words_to_avoid || "Not defined"}`,
-    ].join("\n");
-
-    try {
-      await navigator.clipboard.writeText(voiceText);
-      setVoiceCopied(true);
-      window.setTimeout(() => setVoiceCopied(false), 1800);
-    } catch (error) {
-      console.error("COPY VOICE PROFILE ERROR:", error);
-    }
-  };
-
-  const getVoiceProfileScore = () => {
-    if (!brand) return 0;
-
-    const fields = [
-      brand.target_audience,
-      brand.tone,
-      brand.personality,
-      brand.preferred_words,
-      brand.words_to_avoid,
-    ];
-
-    return Math.round(
-      (fields.filter((value) => value && value.trim()).length / fields.length) * 100
     );
   };
 
@@ -2384,311 +2602,298 @@ function Dashboard({ onBack }) {
      BRAND DNA
   ========================================================= */
 
+  const copyBrandVoiceProfile = async () => {
+    if (!brand) return;
+
+    const profileText = [
+      `Brand: ${brand.name || "Brand"}`,
+      `Who we speak to: ${brand.target_audience || "Not defined"}`,
+      `How we sound: ${brand.tone || "Not defined"}`,
+      `Our personality: ${brand.personality || "Not defined"}`,
+      `Words we prefer: ${brand.preferred_words || "Not defined"}`,
+      `Words we avoid: ${brand.words_to_avoid || "Not defined"}`,
+      `Applied everywhere: Brand voice profile is applied to generated content.`,
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(profileText);
+    } catch (error) {
+      console.error("COPY BRAND VOICE ERROR:", error);
+    }
+  };
+
   const renderBrandDNA = () => {
+    const brandPrimary = brand?.primary_color || "#1677FF";
+    const brandSecondary = brand?.secondary_color || "#B9DCFF";
+
     return (
       <>
-        <div className="page-heading">
+        <div className="page-heading brand-dna-heading">
           <div>
-            <p className="eyebrow blue-eyebrow">
-              BRAND INTELLIGENCE
-            </p>
-
+            <p className="eyebrow blue-eyebrow">BRAND INTELLIGENCE</p>
             <h1>Brand DNA</h1>
-
-            <p>
-              Your brand identity,
-              personality and visual
-              language in one place.
-            </p>
+            <p>Your brand identity, personality and visual language in one place.</p>
           </div>
 
           <button
-            className="primary-button"
-            onClick={() =>
-              openEditBrandForm()
-            }
+            className="primary-button brand-dna-edit-button"
+            onClick={() => openEditBrandForm()}
           >
-            <Pencil size={17} />
-            {brand
-              ? "Edit Brand"
-              : "Create Brand"}
+            <Pencil size={15} />
+            {brand ? "Edit Brand" : "Create Brand"}
           </button>
         </div>
 
         {!brand ? (
           <div className="white-panel empty-state">
             <Sparkles size={42} />
-
-            <h2>
-              No brand created yet
-            </h2>
-
-            <p>
-              Create your brand identity
-              to unlock AI-powered
-              campaigns.
-            </p>
-
-            <button
-              className="primary-button"
-              onClick={
-                openCreateBrandForm
-              }
-            >
+            <h2>No brand created yet</h2>
+            <p>Create your brand identity to unlock AI-powered campaigns.</p>
+            <button className="primary-button" onClick={openCreateBrandForm}>
               <Plus size={18} />
               Create Your Brand
             </button>
           </div>
         ) : (
-          <>
-            <div className="brand-profile-card">
+          <div className="brand-dna-page">
+            <section className="brand-dna-logo-only">
               <div
-                className="brand-profile-logo"
-                style={{
-                  background:
-                    brand.primary_color ||
-                    "#1677FF",
-                }}
+                className="brand-dna-logo-circle"
+                style={{ background: brandPrimary }}
               >
                 {brand.logo_url ? (
-                  <img
-                    src={brand.logo_url}
-                    alt={brand.name}
-                  />
+                  <img src={brand.logo_url} alt={brand.name} />
                 ) : (
                   <span>
-                    {brand.name
-                      ?.charAt(0)
-                      ?.toUpperCase() ||
-                      "B"}
+                    {brand.name?.charAt(0)?.toUpperCase() || "B"}
                   </span>
                 )}
               </div>
+            </section>
 
-              <div className="brand-profile-main">
-                <p className="eyebrow">
-                  ACTIVE BRAND
-                </p>
-
-                <h2>
-                  {brand.name}
-                </h2>
-
+            <div className="brand-dna-active-row">
+              <div>
+                <span className="brand-dna-active-label">ACTIVE BRAND</span>
+                <h2>{brand.name}</h2>
                 <p>
                   {brand.description ||
-                    "Your brand description will appear here."}
+                    "Your brand profile is ready to guide every campaign and content asset."}
                 </p>
               </div>
 
-              <div className="brand-status">
-                <CheckCircle2 size={17} />
+              <div className="brand-dna-active-badge">
+                <CheckCircle2 size={14} />
                 Active
               </div>
             </div>
 
-            <section className="voice-profile-panel">
-              <div className="voice-profile-header">
-                <div>
-                  <p className="eyebrow blue-eyebrow">
-                    REUSABLE VOICE SYSTEM
-                  </p>
-                  <h2>Brand Voice Profile</h2>
-                  <p>
-                    A reusable tone, personality and language guide applied across your generated content.
-                  </p>
+            {brands.length > 0 && (
+              <section className="brand-dna-all-brands">
+                <div className="brand-dna-subheading">
+                  <div>
+                    <span className="brand-dna-section-kicker">YOUR BRANDS</span>
+                    <h3>All created brands</h3>
+                  </div>
+                  <span className="brand-dna-brand-count">{brands.length} brand{brands.length === 1 ? "" : "s"}</span>
                 </div>
 
-                <div className="voice-profile-actions">
-                  <div className="voice-completeness">
-                    <span>Profile completeness</span>
-                    <strong>{getVoiceProfileScore()}%</strong>
+                <div className="brand-dna-brand-list">
+                  {brands.map((item) => {
+                    const itemPrimary = item.primary_color || "#1677FF";
+                    const isActive = String(item.id) === String(brand.id);
+
+                    return (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className={`brand-dna-brand-card ${isActive ? "active" : ""}`}
+                        onClick={() => setBrand(item)}
+                      >
+                        <div
+                          className="brand-dna-brand-avatar"
+                          style={{ background: itemPrimary }}
+                        >
+                          {item.logo_url ? (
+                            <img src={item.logo_url} alt={item.name} />
+                          ) : (
+                            <span>{item.name?.charAt(0)?.toUpperCase() || "B"}</span>
+                          )}
+                        </div>
+
+                        <div className="brand-dna-brand-info">
+                          <strong>{item.name || "Untitled Brand"}</strong>
+                          <span>{item.tone || "Tone not defined"}</span>
+                        </div>
+
+                        <div className="brand-dna-brand-status">
+                          {isActive ? (
+                            <>
+                              <CheckCircle2 size={14} />
+                              Active
+                            </>
+                          ) : (
+                            "View"
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            <section className="brand-voice-profile-card">
+              <div className="brand-voice-profile-header">
+                <div>
+                  <span className="brand-dna-section-kicker">BRAND VOICE PROFILE</span>
+                  <h3>A reusable tone, personality and language guide applied to every generated content.</h3>
+                </div>
+
+                <div className="brand-voice-profile-actions">
+                  <div className="brand-voice-completeness">
+                    <span>PROFILE COMPLETENESS</span>
+                    <strong>
+                      {[
+                        brand.target_audience,
+                        brand.tone,
+                        brand.personality,
+                        brand.preferred_words,
+                        brand.words_to_avoid,
+                      ].filter(Boolean).length * 20 || 20}%
+                    </strong>
                   </div>
 
                   <button
                     type="button"
-                    className="secondary-button voice-copy-button"
-                    onClick={copyBrandVoice}
+                    className="brand-voice-copy-button"
+                    onClick={copyBrandVoiceProfile}
                   >
-                    <Copy size={16} />
-                    {voiceCopied ? "Copied" : "Copy Profile"}
+                    <Copy size={13} />
+                    Copy Profile
                   </button>
                 </div>
               </div>
 
-              <div className="voice-profile-progress">
-                <span style={{ width: `${getVoiceProfileScore()}%` }} />
+              <div className="brand-voice-progress-track">
+                <div
+                  className="brand-voice-progress-fill"
+                  style={{
+                    width: `${[
+                      brand.target_audience,
+                      brand.tone,
+                      brand.personality,
+                      brand.preferred_words,
+                      brand.words_to_avoid,
+                    ].filter(Boolean).length * 20 || 20}%`,
+                    background: `linear-gradient(90deg, ${brandPrimary}, ${brandSecondary})`,
+                  }}
+                />
               </div>
 
-              <div className="voice-rules-grid">
-                <div className="voice-rule">
-                  <span className="voice-rule-number">01</span>
+              <div className="brand-voice-grid">
+                <div className="brand-voice-item">
+                  <div className="brand-voice-item-icon"><Target size={12} /></div>
                   <div>
-                    <h3>Who we speak to</h3>
-                    <p>{brand.target_audience || "Define your target audience"}</p>
+                    <strong>Who we speak to</strong>
+                    <span>{brand.target_audience || "Not defined"}</span>
                   </div>
                 </div>
 
-                <div className="voice-rule">
-                  <span className="voice-rule-number">02</span>
+                <div className="brand-voice-item">
+                  <div className="brand-voice-item-icon"><Sparkles size={12} /></div>
                   <div>
-                    <h3>How we sound</h3>
-                    <p>{brand.tone || "Define the brand tone"}</p>
+                    <strong>How we sound</strong>
+                    <span>{brand.tone || "Not defined"}</span>
                   </div>
                 </div>
 
-                <div className="voice-rule">
-                  <span className="voice-rule-number">03</span>
+                <div className="brand-voice-item">
+                  <div className="brand-voice-item-icon"><Palette size={12} /></div>
                   <div>
-                    <h3>Our personality</h3>
-                    <p>{brand.personality || "Define the personality traits"}</p>
+                    <strong>Our personality</strong>
+                    <span>{brand.personality || "Not defined"}</span>
                   </div>
                 </div>
 
-                <div className="voice-rule voice-rule-positive">
-                  <span className="voice-rule-number">04</span>
+                <div className="brand-voice-item">
+                  <div className="brand-voice-item-icon brand-voice-item-icon-green"><CheckCircle2 size={12} /></div>
                   <div>
-                    <h3>Words we prefer</h3>
-                    <p>{brand.preferred_words || "Add preferred words and phrases"}</p>
+                    <strong>Words we prefer</strong>
+                    <span>{brand.preferred_words || "Not defined"}</span>
                   </div>
                 </div>
 
-                <div className="voice-rule voice-rule-negative">
-                  <span className="voice-rule-number">05</span>
+                <div className="brand-voice-item">
+                  <div className="brand-voice-item-icon brand-voice-item-icon-red"><X size={12} /></div>
                   <div>
-                    <h3>Words we avoid</h3>
-                    <p>{brand.words_to_avoid || "Add words and phrases to avoid"}</p>
+                    <strong>Words we avoid</strong>
+                    <span>{brand.words_to_avoid || "Not defined"}</span>
                   </div>
                 </div>
 
-                <div className="voice-rule voice-rule-system">
-                  <span className="voice-rule-number">06</span>
+                <div className="brand-voice-item">
+                  <div className="brand-voice-item-icon brand-voice-item-icon-purple"><Sparkles size={12} /></div>
                   <div>
-                    <h3>Applied everywhere</h3>
-                    <p>Use this profile when generating, editing and checking content.</p>
+                    <strong>Applied everywhere</strong>
+                    <span>Used for your campaigns, content and quality checks.</span>
                   </div>
                 </div>
               </div>
             </section>
 
-            <div className="brand-dna-grid">
-              <div className="white-panel dna-card">
-                <div className="dna-icon">
-                  <Target size={20} />
-                </div>
-
-                <h3>
-                  Target Audience
-                </h3>
-
-                <p>
-                  {brand.target_audience ||
-                    "Not defined"}
-                </p>
-              </div>
-
-              <div className="white-panel dna-card">
-                <div className="dna-icon">
-                  <Sparkles size={20} />
-                </div>
-
-                <h3>
-                  Brand Tone
-                </h3>
-
-                <p>
-                  {brand.tone ||
-                    "Not defined"}
-                </p>
-              </div>
-
-              <div className="white-panel dna-card">
-                <div className="dna-icon">
-                  <Palette size={20} />
-                </div>
-
-                <h3>
-                  Personality
-                </h3>
-
-                <p>
-                  {brand.personality ||
-                    "Not defined"}
-                </p>
-              </div>
-
-              <div className="white-panel dna-card">
-                <div className="dna-icon">
-                  <Sparkles size={20} />
-                </div>
-
-                <h3>
-                  Preferred Words
-                </h3>
-
-                <p>
-                  {brand.preferred_words ||
-                    "Not defined"}
-                </p>
-              </div>
-
-              <div className="white-panel dna-card">
-                <div className="dna-icon">
-                  <X size={20} />
-                </div>
-
-                <h3>
-                  Words to Avoid
-                </h3>
-
-                <p>
-                  {brand.words_to_avoid ||
-                    "Not defined"}
-                </p>
-              </div>
-
-              <div className="white-panel dna-card">
-                <div className="dna-icon">
-                  <Palette size={20} />
-                </div>
-
-                <h3>
-                  Brand Colors
-                </h3>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "12px",
-                    marginTop: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "42px",
-                      height: "42px",
-                      borderRadius:
-                        "12px",
-                      background:
-                        brand.primary_color ||
-                        "#1677FF",
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      width: "42px",
-                      height: "42px",
-                      borderRadius:
-                        "12px",
-                      background:
-                        brand.secondary_color ||
-                        "#B9DCFF",
-                    }}
-                  />
+            <section className="brand-dna-detail-stack">
+              <div className="brand-dna-detail-card">
+                <div className="brand-dna-detail-icon"><Target size={13} /></div>
+                <div>
+                  <strong>Target Audience</strong>
+                  <span>{brand.target_audience || "Not defined"}</span>
                 </div>
               </div>
-            </div>
-          </>
+
+              <div className="brand-dna-detail-card">
+                <div className="brand-dna-detail-icon"><Sparkles size={13} /></div>
+                <div>
+                  <strong>Brand Tone</strong>
+                  <span>{brand.tone || "Not defined"}</span>
+                </div>
+              </div>
+
+              <div className="brand-dna-detail-card">
+                <div className="brand-dna-detail-icon"><Palette size={13} /></div>
+                <div>
+                  <strong>Personality</strong>
+                  <span>{brand.personality || "Not defined"}</span>
+                </div>
+              </div>
+
+              <div className="brand-dna-detail-card">
+                <div className="brand-dna-detail-icon"><Sparkles size={13} /></div>
+                <div>
+                  <strong>Preferred Words</strong>
+                  <span>{brand.preferred_words || "Not defined"}</span>
+                </div>
+              </div>
+
+              <div className="brand-dna-detail-card">
+                <div className="brand-dna-detail-icon"><X size={13} /></div>
+                <div>
+                  <strong>Words to Avoid</strong>
+                  <span>{brand.words_to_avoid || "Not defined"}</span>
+                </div>
+              </div>
+
+              <div className="brand-dna-detail-card brand-dna-color-card">
+                <div className="brand-dna-detail-icon"><Palette size={13} /></div>
+                <div>
+                  <strong>Brand Colors</strong>
+                  <div className="brand-dna-color-swatches">
+                    <span style={{ background: brandPrimary }} />
+                    <span style={{ background: brandSecondary }} />
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
         )}
       </>
     );
@@ -2836,15 +3041,23 @@ function Dashboard({ onBack }) {
                     <button
                       className="secondary-button"
                       onClick={() =>
-                        regenerateContent(
-                          campaign.id
-                        )
+                        regenerateContent(campaign.id)
+                      }
+                      disabled={
+                        regeneratingCampaignId === Number(campaign.id)
                       }
                     >
                       <RefreshCw
                         size={16}
+                        className={
+                          regeneratingCampaignId === Number(campaign.id)
+                            ? "spin"
+                            : ""
+                        }
                       />
-                      Regenerate
+                      {regeneratingCampaignId === Number(campaign.id)
+                        ? "Regenerating..."
+                        : "Regenerate"}
                     </button>
                   </div>
                 </div>
@@ -3190,7 +3403,80 @@ function Dashboard({ onBack }) {
                             {quality.audienceGood ? "Good" : "Review"}
                           </strong>
                         </div>
+
+                        <div className="quality-row">
+                          <span>
+                            {quality.toneAligned ? (
+                              <CheckCircle2 size={15} />
+                            ) : (
+                              <span className="quality-alert-icon">!</span>
+                            )}
+                            Tone
+                          </span>
+                          <strong
+                            className={
+                              quality.toneAligned
+                                ? "quality-ok"
+                                : "quality-review"
+                            }
+                            style={{ textTransform: "capitalize" }}
+                          >
+                            {quality.detectedTone}
+                          </strong>
+                        </div>
                       </div>
+
+                      {quality.recommendations.length > 0 && (
+                        <div
+                          className="quality-recommendations"
+                          style={{
+                            marginTop: "11px",
+                            padding: "11px 12px",
+                            borderRadius: "10px",
+                            background: "#f5f9ff",
+                            border: "1px solid #dfeaf7",
+                          }}
+                        >
+                          <strong
+                            style={{
+                              display: "block",
+                              marginBottom: "7px",
+                              color: "#234773",
+                              fontSize: "9px",
+                              fontWeight: 800,
+                            }}
+                          >
+                            Recommended improvements
+                          </strong>
+                          {quality.recommendations.slice(0, 3).map(
+                            (recommendation, index) => (
+                              <div
+                                className="quality-recommendation"
+                                key={`${recommendation}-${index}`}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: "7px",
+                                  marginTop: index === 0 ? 0 : "5px",
+                                  color: "#617996",
+                                  fontSize: "8px",
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    color: "#1677ff",
+                                    fontWeight: 900,
+                                  }}
+                                >
+                                  •
+                                </span>
+                                <span>{recommendation}</span>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
 
                       {quality.detectedForbiddenWords.length > 0 && (
                         <div className="quality-warning-box">
@@ -3237,17 +3523,29 @@ function Dashboard({ onBack }) {
                   </button>
 
                   <button
+                    type="button"
                     className="secondary-button content-regenerate-button"
-                    onClick={() =>
-                      regenerateContent(item.campaign_id)
+                    onClick={() => regenerateContent(item)}
+                    disabled={
+                      regeneratingContentId === String(item.id) ||
+                      regeneratingCampaignId === Number(item.campaign_id)
                     }
-                    disabled={!item.campaign_id}
                   >
-                    <RefreshCw size={15} />
-                    Regenerate
+                    <RefreshCw
+                      size={15}
+                      className={
+                        regeneratingContentId === String(item.id)
+                          ? "button-spin"
+                          : ""
+                      }
+                    />
+                    {regeneratingContentId === String(item.id)
+                      ? "Regenerating..."
+                      : "Regenerate"}
                   </button>
 
                   <button
+                    type="button"
                     className="icon-danger-button"
                     title="Delete content"
                     aria-label="Delete content"
@@ -3266,6 +3564,197 @@ function Dashboard({ onBack }) {
           </div>
         )}
       </>
+    );
+  };
+
+  /* =========================================================
+     QUALITY & TONE CHECKER
+  ========================================================= */
+
+  const renderQualityToneChecker = () => {
+    const quality = analyzeContent({
+      content: qualityDraft,
+      platform: qualityPlatform,
+    });
+
+    const scoreClass =
+      quality.score >= 80
+        ? "quality-tool-score-good"
+        : quality.score >= 60
+          ? "quality-tool-score-warning"
+          : "quality-tool-score-danger";
+
+    const checks = [
+      {
+        label: "Brand voice",
+        good: quality.brandVoiceGood,
+        value: quality.brandVoiceGood ? "PASS" : "REVIEW",
+        description: quality.brandVoiceGood
+          ? "Preferred language is represented."
+          : "The copy needs stronger brand-language alignment.",
+      },
+      {
+        label: "Hook",
+        good: quality.hookGood,
+        value: quality.hookGood ? "PASS" : "REVIEW",
+        description: quality.hookGood
+          ? "The opening is strong enough to stop the scroll."
+          : "Strengthen the opening with a clearer hook or benefit.",
+      },
+      {
+        label: "CTA",
+        good: quality.ctaGood,
+        value: quality.ctaGood ? "PASS" : "REVIEW",
+        description: quality.ctaGood
+          ? "A clear action is suggested."
+          : "Add a clear next action for the audience.",
+      },
+      {
+        label: "Audience fit",
+        good: quality.audienceGood,
+        value: quality.audienceGood ? "PASS" : "REVIEW",
+        description: quality.audienceGood
+          ? "The copy reflects the target audience."
+          : "Add audience-specific language or benefits.",
+      },
+      {
+        label: "No forbidden words",
+        good: quality.forbiddenWordsGood,
+        value: quality.forbiddenWordsGood ? "PASS" : "REVIEW",
+        description: quality.forbiddenWordsGood
+          ? "No words from the avoid list were detected."
+          : `Avoid: ${quality.detectedForbiddenWords.join(", ")}.`,
+      },
+      {
+        label: "Length",
+        good: quality.lengthGood,
+        value: quality.lengthGood ? "PASS" : "REVIEW",
+        description: `${quality.characterCount} / ${quality.maxLength} characters.`,
+      },
+    ];
+
+    return (
+      <div className="quality-tool-page">
+        <div className="quality-tool-heading">
+          <div>
+            <p className="quality-tool-eyebrow">AI QUALITY & TONE</p>
+            <h1>Quality Checker</h1>
+            <p>
+              Check brand voice, tone, audience fit, CTA, forbidden words and
+              platform length before publishing.
+            </p>
+          </div>
+
+          <div className="quality-tool-brand-pill">
+            <ShieldCheck size={15} />
+            <span>{brand?.name || "BrandForge"}</span>
+          </div>
+        </div>
+
+        {contentError && (
+          <div className="error-message">{contentError}</div>
+        )}
+
+        <div className="quality-tool-layout">
+          <section className="quality-tool-input-card">
+            <div className="quality-tool-card-heading">
+              <div>
+                <span className="quality-tool-card-label">CHECK CONTENT</span>
+                <strong>Paste or write your content</strong>
+              </div>
+
+              <button
+                type="button"
+                className="quality-tool-latest-button"
+                onClick={useLatestContentForQuality}
+                disabled={!contents.length}
+              >
+                <RefreshCw size={14} />
+                Use latest content
+              </button>
+            </div>
+
+            <div className="quality-tool-platform-label">PLATFORM</div>
+            <div className="quality-tool-platforms" role="tablist" aria-label="Platform">
+              {["Instagram", "LinkedIn", "X"].map((platformName) => (
+                <button
+                  key={platformName}
+                  type="button"
+                  role="tab"
+                  aria-selected={qualityPlatform === platformName}
+                  className={`quality-tool-platform-button ${
+                    qualityPlatform === platformName ? "active" : ""
+                  }`}
+                  onClick={() => setQualityPlatform(platformName)}
+                >
+                  {platformName}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              className="quality-tool-textarea"
+              value={qualityDraft}
+              onChange={(event) => setQualityDraft(event.target.value)}
+              placeholder="Paste or write your content here..."
+              spellCheck="true"
+            />
+
+            <div className="quality-tool-textarea-footer">
+              <span>{quality.characterCount} characters</span>
+              <span>Target: {qualityPlatform}</span>
+            </div>
+          </section>
+
+          <section className="quality-tool-analysis-card">
+            <div className="quality-tool-analysis-heading">
+              <div>
+                <span className="quality-tool-card-label">LIVE ANALYSIS</span>
+                <strong>Content Health</strong>
+              </div>
+
+              <div className={`quality-tool-score ${scoreClass}`}>
+                <span>{quality.score}</span>
+                <small>/100</small>
+              </div>
+            </div>
+
+            <div className="quality-tool-progress-track">
+              <div
+                className="quality-tool-progress-fill"
+                style={{ width: `${quality.score}%` }}
+              />
+            </div>
+
+            <div className="quality-tool-checks">
+              {checks.map((check) => (
+                <div className="quality-tool-check" key={check.label}>
+                  <div className={`quality-tool-check-icon ${check.good ? "pass" : "review"}`}>
+                    {check.good ? <CheckCircle2 size={15} /> : <span>!</span>}
+                  </div>
+
+                  <div className="quality-tool-check-copy">
+                    <strong>{check.label}</strong>
+                    <span>{check.description}</span>
+                  </div>
+
+                  <span className={`quality-tool-check-status ${check.good ? "pass" : "review"}`}>
+                    {check.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {quality.detectedPreferredWords.length > 0 && (
+              <div className="quality-tool-preferred">
+                <strong>Preferred words detected</strong>
+                <span>{quality.detectedPreferredWords.join(", ")}</span>
+              </div>
+            )}
+
+          </section>
+        </div>
+      </div>
     );
   };
 
@@ -3412,167 +3901,6 @@ function Dashboard({ onBack }) {
   };
 
   /* =========================================================
-     QUALITY CHECKER — STANDALONE WORKSPACE
-  ========================================================= */
-
-  const renderQualityChecker = () => {
-    const qualityItem = {
-      content: qualityText,
-      platform: qualityPlatform,
-    };
-
-    const result = analyzeContent(qualityItem);
-    const checks = [
-      ["Brand voice", result.brandVoiceGood, "Preferred language is represented."],
-      ["Hook", result.hookGood, "The opening is strong enough to stop the scroll."],
-      ["CTA", result.ctaGood, "A clear action is suggested."],
-      ["Audience fit", result.audienceGood, "The copy reflects the target audience."],
-      ["No forbidden words", result.forbiddenWordsGood, result.detectedForbiddenWords.length ? `Found: ${result.detectedForbiddenWords.join(", ")}` : "No words from the avoid list were detected."],
-      ["Length", result.lengthGood, `${result.characterCount} / ${result.maxLength} characters.`],
-    ];
-
-    const scoreClass =
-      result.score >= 80
-        ? "quality-good"
-        : result.score >= 60
-        ? "quality-warning"
-        : "quality-danger";
-
-    return (
-      <>
-        <div className="page-heading quality-page-heading">
-          <div>
-            <p className="eyebrow blue-eyebrow">AI QUALITY & TONE</p>
-            <h1>Quality Checker</h1>
-            <p>
-              Check brand voice, tone, audience fit, CTA, forbidden words and platform length before publishing.
-            </p>
-          </div>
-
-          <div className="quality-page-brand-pill">
-            <ShieldCheck size={17} />
-            <span>{brand?.name || "No active brand"}</span>
-          </div>
-        </div>
-
-        <div className="quality-checker-page-grid">
-          <section className="white-panel quality-input-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow blue-eyebrow">CHECK CONTENT</p>
-                <h3>Paste or write your content</h3>
-              </div>
-              {contents.length > 0 && (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => {
-                    const first = contents[0];
-                    setQualityText(String(first?.content || ""));
-                    setQualityPlatform(first?.platform || "Instagram");
-                  }}
-                >
-                  <RefreshCw size={15} />
-                  Use latest content
-                </button>
-              )}
-            </div>
-
-            <div className="quality-platform-row">
-              <label>Platform</label>
-              <div className="quality-platform-tabs">
-                {["Instagram", "LinkedIn", "X"].map((platform) => (
-                  <button
-                    key={platform}
-                    type="button"
-                    className={qualityPlatform === platform ? "active" : ""}
-                    onClick={() => setQualityPlatform(platform)}
-                  >
-                    {platform}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <textarea
-              className="quality-checker-textarea"
-              value={qualityText}
-              onChange={(event) => setQualityText(event.target.value)}
-              placeholder="Paste your campaign content here..."
-            />
-
-            <div className="quality-input-footer">
-              <span>{qualityText.length} characters</span>
-              <span>Target: {qualityPlatform}</span>
-            </div>
-          </section>
-
-          <section className="white-panel quality-results-panel">
-            <div className="quality-result-top">
-              <div>
-                <p className="eyebrow blue-eyebrow">LIVE ANALYSIS</p>
-                <h3>Content Health</h3>
-              </div>
-              <div className={`quality-score quality-page-score ${scoreClass}`}>
-                {result.score}<span>/100</span>
-              </div>
-            </div>
-
-            <div className="quality-page-progress">
-              <span style={{ width: `${result.score}%` }} />
-            </div>
-
-            <div className="quality-check-list">
-              {checks.map(([label, good, description]) => (
-                <div className="quality-check-row" key={label}>
-                  <div className={`quality-check-icon ${good ? "good" : "bad"}`}>
-                    {good ? <CheckCircle2 size={16} /> : <X size={16} />}
-                  </div>
-                  <div>
-                    <strong>{label}</strong>
-                    <p>{description}</p>
-                  </div>
-                  <span className={good ? "check-status good" : "check-status bad"}>
-                    {good ? "PASS" : "REVIEW"}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {result.detectedPreferredWords.length > 0 && (
-              <div className="quality-detected-box positive">
-                <strong>Preferred words detected</strong>
-                <span>{result.detectedPreferredWords.join(", ")}</span>
-              </div>
-            )}
-
-            {result.detectedForbiddenWords.length > 0 && (
-              <div className="quality-detected-box negative">
-                <strong>Words to avoid detected</strong>
-                <span>{result.detectedForbiddenWords.join(", ")}</span>
-              </div>
-            )}
-          </section>
-        </div>
-
-        <section className="white-panel quality-voice-reference">
-          <div>
-            <p className="eyebrow blue-eyebrow">BRAND VOICE REFERENCE</p>
-            <h3>{brand?.name || "Your brand"} voice rules</h3>
-          </div>
-          <div className="quality-voice-tags">
-            <span><strong>Tone:</strong> {brand?.tone || "Not set"}</span>
-            <span><strong>Personality:</strong> {brand?.personality || "Not set"}</span>
-            <span><strong>Audience:</strong> {brand?.target_audience || "Not set"}</span>
-            <span><strong>Prefer:</strong> {brand?.preferred_words || "Not set"}</span>
-            <span><strong>Avoid:</strong> {brand?.words_to_avoid || "Not set"}</span>
-          </div>
-        </section>
-      </>
-    );
-  };
-
-  /* =========================================================
      PAGE ROUTER
   ========================================================= */
 
@@ -3588,7 +3916,7 @@ function Dashboard({ onBack }) {
         return renderContent();
 
       case "Quality Checker":
-        return renderQualityChecker();
+        return renderQualityToneChecker();
 
       case "Settings":
         return renderSettings();
@@ -3698,47 +4026,117 @@ function Dashboard({ onBack }) {
 
               <input
                 value={searchQuery}
-                onChange={(event) =>
-                  handleSearch(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSelectedCampaign(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    handleSearch(event.currentTarget.value);
+                  }
+                }}
                 placeholder="Search..."
+                aria-label="Search BrandForge"
               />
             </div>
 
-            <button
-              className="topbar-icon-button"
-              onClick={() => {
-                setShowNotifications(
-                  (previous) =>
-                    !previous
-                );
-                setShowProfileMenu(
-                  false
-                );
-              }}
-            >
-              <Bell size={19} />
+            <div className="notification-wrapper">
+              <button
+                type="button"
+                className={`topbar-icon-button ${
+                  showNotifications ? "active" : ""
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowNotifications((previous) => !previous);
+                  setShowProfileMenu(false);
+                }}
+                aria-label="Notifications"
+                aria-expanded={showNotifications}
+              >
+                <Bell size={19} />
 
-              {contents.length > 0 && (
-                <span className="notification-dot" />
+                {(contents.length > 0 || campaigns.length > 0) && (
+                  <span className="notification-dot" />
+                )}
+              </button>
+
+              {showNotifications && (
+                <div
+                  className="topbar-dropdown notification-dropdown"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="dropdown-header">
+                    <div>
+                      <strong>Notifications</strong>
+                      <span className="notification-count">
+                        {contents.length + campaigns.length}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowNotifications(false)}
+                      aria-label="Close notifications"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {contents.length === 0 && campaigns.length === 0 ? (
+                    <div className="notification-empty">
+                      <Bell size={20} />
+                      <strong>You're all caught up</strong>
+                      <p>No new campaign or content notifications.</p>
+                    </div>
+                  ) : (
+                    <div className="notification-list">
+                      {campaigns.slice(0, 3).map((campaign) => (
+                        <button
+                          type="button"
+                          className="notification-item"
+                          key={`campaign-${campaign.id}`}
+                          onClick={() => {
+                            setActivePage("Campaigns");
+                            setSelectedCampaign(campaign);
+                            setShowNotifications(false);
+                          }}
+                        >
+                          <span className="notification-icon">
+                            <Megaphone size={15} />
+                          </span>
+                          <span>
+                            <strong>Campaign ready</strong>
+                            <p>{campaign.name || "New campaign created."}</p>
+                          </span>
+                        </button>
+                      ))}
+
+                      {contents.slice(0, 3).map((item) => (
+                        <button
+                          type="button"
+                          className="notification-item"
+                          key={`content-${item.id}`}
+                          onClick={() => {
+                            setActivePage("Content");
+                            setShowNotifications(false);
+                          }}
+                        >
+                          <span className="notification-icon">
+                            <Sparkles size={15} />
+                          </span>
+                          <span>
+                            <strong>Content generated</strong>
+                            <p>
+                              {item.platform || "Platform"} content is ready to review.
+                            </p>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
-            </button>
-
-            {showNotifications && (
-              <div className="topbar-dropdown notification-dropdown">
-                <strong>
-                  Notifications
-                </strong>
-
-                <p>
-                  {contents.length > 0
-                    ? `You have ${contents.length} generated content asset(s).`
-                    : "No new notifications."}
-                </p>
-              </div>
-            )}
+            </div>
 
             <div className="topbar-menu-wrapper">
               <button
@@ -3775,6 +4173,15 @@ function Dashboard({ onBack }) {
 
               {showProfileMenu && (
                 <div className="topbar-dropdown profile-dropdown">
+                  <button
+                    type="button"
+                    className="profile-dropdown-profile-button"
+                    onClick={openCreatorProfile}
+                  >
+                    <User size={16} />
+                    View Profile
+                  </button>
+
                   <button
                     onClick={() => {
                       setActivePage(
@@ -3825,7 +4232,7 @@ function Dashboard({ onBack }) {
                       closeMenus();
                     }}
                   >
-                    <ShieldCheck
+                    <CheckCircle2
                       size={16}
                     />
                     Quality Checker
@@ -3870,51 +4277,35 @@ function Dashboard({ onBack }) {
 
       {/* BRAND MODAL */}
 
-      <BrandFormModal />
+      {renderBrandFormModal()}
 
-      {/* CONTENT EDITOR — STEP 3 */}
+      {/* CONTENT EDITOR */}
 
       {editingContent && (
         <div
-          className="brand-modal-overlay advanced-editor-overlay"
+          className="brand-modal-overlay content-editor-overlay"
           onClick={closeContentEditor}
         >
           <div
-            className="advanced-editor-modal"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
+            className="content-editor-modal"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div className="advanced-editor-header">
-              <div className="advanced-editor-title">
-                <div className="advanced-editor-title-icon">
-                  <WandSparkles size={18} />
+            <div className="content-editor-header">
+              <div>
+                <div className="content-editor-title-row">
+                  <span className="content-editor-badge">CONTENT EDITOR</span>
+                  <span className="content-editor-platform">
+                    {editingContent.platform || "Platform"}
+                  </span>
                 </div>
-
-                <div>
-                  <p className="eyebrow blue-eyebrow">
-                    STEP 3 · ADVANCED CONTENT EDITOR
-                  </p>
-
-                  <h2>
-                    Edit & polish your content
-                  </h2>
-
-                  <p>
-                    Refine the copy, check content health,
-                    and preview how it will look on its
-                    target platform.
-                  </p>
-                </div>
+                <h2>Refine your content</h2>
+                <p>Polish the message, check its quality, and save a publish-ready version.</p>
               </div>
 
               <button
                 className="modal-close"
-                type="button"
                 onClick={closeContentEditor}
-                disabled={
-                  savingEditedContent || editorSaving
-                }
+                disabled={savingEditedContent || editorAssistLoading}
                 aria-label="Close editor"
               >
                 <X size={20} />
@@ -3922,482 +4313,269 @@ function Dashboard({ onBack }) {
             </div>
 
             {contentError && (
-              <div className="error-message editor-error">
+              <div className="error-message">
                 {contentError}
               </div>
             )}
 
-            <div className="advanced-editor-meta">
-              <div className="editor-meta-item">
-                <span>Platform</span>
-                <strong>
-                  {editingContent.platform || "Platform"}
-                </strong>
-              </div>
-
-              <div className="editor-meta-item">
-                <span>Content type</span>
-                <strong>
-                  {editingContent.content_type || "Content"}
-                </strong>
-              </div>
-
-              <div className="editor-meta-item">
-                <span>Status</span>
-                <strong className="editor-status">
-                  {editingContent.status || "draft"}
-                </strong>
-              </div>
-
-              <div className="editor-meta-item editor-meta-health">
-                <span>Live health</span>
-                {(() => {
-                  const quality = analyzeContent({
-                    ...editingContent,
-                    content: editContentText,
-                  });
-
-                  return (
-                    <strong
-                      className={
-                        quality.score >= 85
-                          ? "editor-health-good"
-                          : quality.score >= 65
-                          ? "editor-health-warning"
-                          : "editor-health-danger"
-                      }
-                    >
-                      {quality.score}/100
-                    </strong>
-                  );
-                })()}
-              </div>
-            </div>
-
-            <div className="advanced-editor-layout">
-              <section className="editor-workspace">
-                <div className="editor-toolbar-row">
-                  <div className="editor-toolbar">
-                    <button
-                      type="button"
-                      className="editor-tool-button"
-                      onClick={() =>
-                        wrapEditorSelection("**", "**")
-                      }
-                      title="Bold"
-                    >
-                      <strong>B</strong>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="editor-tool-button"
-                      onClick={() =>
-                        wrapEditorSelection("*", "*")
-                      }
-                      title="Italic"
-                    >
-                      <em>I</em>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="editor-tool-button"
-                      onClick={() =>
-                        insertEditorText("• ")
-                      }
-                      title="Bullet"
-                    >
-                      •
-                    </button>
-
-                    <button
-                      type="button"
-                      className="editor-tool-button"
-                      onClick={() =>
-                        insertEditorText("#")
-                      }
-                      title="Add hashtag"
-                    >
-                      #
-                    </button>
-
-                    <span className="editor-toolbar-divider" />
-
-                    <button
-                      type="button"
-                      className="editor-tool-button"
-                      onClick={undoEditor}
-                      disabled={editorHistoryIndex <= 0}
-                      title="Undo"
-                    >
-                      ↶
-                    </button>
-
-                    <button
-                      type="button"
-                      className="editor-tool-button"
-                      onClick={redoEditor}
-                      disabled={
-                        editorHistoryIndex < 0 ||
-                        editorHistoryIndex >=
-                          editorHistory.length - 1
-                      }
-                      title="Redo"
-                    >
-                      ↷
-                    </button>
+            <div className="content-editor-layout">
+              <section className="content-editor-workspace">
+                <div className="content-editor-section-heading">
+                  <div>
+                    <span>EDITOR</span>
+                    <strong>Write and refine</strong>
                   </div>
+                  <span className="editor-status-dot">Live</span>
+                </div>
 
-                  <div className="editor-mode-switch">
-                    <button
-                      type="button"
-                      className={
-                        editorMode === "edit"
-                          ? "active"
-                          : ""
-                      }
-                      onClick={() =>
-                        setEditorMode("edit")
-                      }
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      className={
-                        editorMode === "preview"
-                          ? "active"
-                          : ""
-                      }
-                      onClick={() =>
-                        setEditorMode("preview")
-                      }
-                    >
-                      Preview
-                    </button>
+                <div className="content-editor-textarea-wrap">
+                  <textarea
+                    className="content-editor-textarea"
+                    value={editContentText}
+                    onChange={(event) => {
+                      setEditContentText(event.target.value);
+                      setEditorNotice("");
+                      setContentError("");
+                    }}
+                    placeholder="Write or refine your content here..."
+                    spellCheck="true"
+                    autoFocus
+                  />
+                  <div className="content-editor-counter">
+                    <span>{editContentText.length.toLocaleString()} characters</span>
+                    <span>Limit: {getEditorLimit(editingContent.platform).toLocaleString()}</span>
                   </div>
                 </div>
 
-                {editorMode === "edit" ? (
-                  <div className="advanced-textarea-shell">
-                    <textarea
-                      ref={editorTextareaRef}
-                      className="advanced-content-textarea"
-                      value={editContentText}
-                      onChange={(event) =>
-                        updateEditorText(
-                          event.target.value
-                        )
-                      }
-                      placeholder="Write or refine your content..."
-                      spellCheck="true"
-                    />
-
-                    <div className="editor-counter-row">
-                      <span>
-                        {editContentText.length} characters
-                      </span>
-
-                      <span>
-                        {
-                          editContentText
-                            .trim()
-                            .split(/\s+/)
-                            .filter(Boolean).length
-                        } words
-                      </span>
-
-                      <span>
-                        Ctrl + Enter to save
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="editor-preview-stage">
-                    <div className="editor-preview-label">
-                      LIVE PREVIEW
-                    </div>
-
-                    <div
-                      className={`platform-preview ${
-                        String(
-                          editingContent.platform || ""
-                        )
-                          .toLowerCase()
-                          .includes("linkedin")
-                          ? "linkedin-preview"
-                          : String(
-                              editingContent.platform || ""
-                            )
-                              .toLowerCase()
-                              .includes("x")
-                          ? "x-preview"
-                          : "instagram-preview"
-                      }`}
-                    >
-                      <div className="preview-top">
-                        <div className="preview-avatar">
-                          {brand?.name?.charAt(0) || "B"}
-                        </div>
-
-                        <div>
-                          <strong>
-                            {brand?.name ||
-                              "Your Brand"}
-                          </strong>
-                          <span>
-                            {editingContent.platform ||
-                              "Social Platform"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="preview-copy">
-                        {editContentText ||
-                          "Your content preview will appear here."}
-                      </div>
-
-                      <div className="preview-actions">
-                        <span>♡</span>
-                        <span>○</span>
-                        <span>↗</span>
-                        <span>⋯</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="quick-edit-section">
-                  <div className="quick-edit-heading">
+                <div className="editor-assist-panel">
+                  <div className="editor-assist-heading">
                     <div>
-                      <span>QUICK POLISH</span>
-                      <strong>Improve in one click</strong>
+                      <WandSparkles size={16} />
+                      <strong>Quick Assist</strong>
                     </div>
-
-                    <small>
-                      Local editing tools — no content is lost
-                    </small>
+                    <span>Fast local refinements</span>
                   </div>
 
-                  <div className="quick-edit-grid">
+                  <div className="editor-assist-actions">
                     <button
                       type="button"
-                      onClick={() =>
-                        runEditorAction("hook")
-                      }
+                      onClick={() => improveEditorText("hook")}
+                      disabled={editorAssistLoading}
                     >
-                      <span>✨</span>
-                      Improve hook
+                      <Sparkles size={14} />
+                      Improve Hook
                     </button>
-
                     <button
                       type="button"
-                      onClick={() =>
-                        runEditorAction("cta")
-                      }
+                      onClick={() => improveEditorText("cta")}
+                      disabled={editorAssistLoading}
                     >
-                      <span>🎯</span>
+                      <Target size={14} />
                       Add CTA
                     </button>
-
                     <button
                       type="button"
-                      onClick={() =>
-                        runEditorAction("hashtags")
-                      }
+                      onClick={() => improveEditorText("shorten")}
+                      disabled={editorAssistLoading}
                     >
-                      <span>#</span>
-                      Add hashtags
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        runEditorAction("emoji")
-                      }
-                    >
-                      <span>😊</span>
-                      Add emoji
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        runEditorAction("shorten")
-                      }
-                    >
-                      <span>↘</span>
+                      <ArrowLeft size={14} />
                       Shorten
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => improveEditorText("clean")}
+                      disabled={editorAssistLoading}
+                    >
+                      <CheckCircle2 size={14} />
+                      Clean Up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={regenerateEditorSection}
+                      disabled={editorAssistLoading}
+                    >
+                      <RefreshCw size={14} />
+                      Regenerate Section
                     </button>
                   </div>
                 </div>
+
+                {editorNotice && (
+                  <div className="editor-notice">
+                    <CheckCircle2 size={15} />
+                    <span>{editorNotice}</span>
+                  </div>
+                )}
               </section>
 
-              <aside className="editor-side-panel">
-                <div className="editor-side-card">
-                  <div className="editor-side-heading">
+              <aside className="content-editor-sidebar">
+                <div className="editor-preview-card">
+                  <div className="editor-preview-header">
                     <div>
-                      <span>CONTENT HEALTH</span>
-                      <strong>Live quality check</strong>
+                      <span>LIVE PREVIEW</span>
+                      <strong>{editingContent.platform || "Content"}</strong>
                     </div>
-
-                    {(() => {
-                      const quality = analyzeContent({
-                        ...editingContent,
-                        content: editContentText,
-                      });
-
-                      return (
-                        <div
-                          className={`editor-score ${
-                            quality.score >= 85
-                              ? "editor-score-good"
-                              : quality.score >= 65
-                              ? "editor-score-warning"
-                              : "editor-score-danger"
-                          }`}
-                        >
-                          {quality.score}
-                        </div>
-                      );
-                    })()}
+                    <Eye size={17} />
                   </div>
+                  <div className="editor-preview-body">
+                    {editContentText.trim() || "Your edited content will appear here."}
+                  </div>
+                </div>
 
+                <div className="editor-quality-card">
                   {(() => {
-                    const quality = analyzeContent({
+                    const editorAnalysis = analyzeContent({
                       ...editingContent,
                       content: editContentText,
                     });
-
-                    const checks = [
-                      [
-                        "Brand voice",
-                        quality.brandVoiceGood,
-                      ],
-                      ["Hook", quality.hookGood],
-                      ["CTA", quality.ctaGood],
-                      [
-                        "Audience",
-                        quality.audienceGood,
-                      ],
-                      [
-                        "No forbidden words",
-                        quality.forbiddenWordsGood,
-                      ],
-                      [
-                        "Length",
-                        quality.lengthGood,
-                      ],
-                    ];
+                    const scoreClass =
+                      editorAnalysis.score >= 80
+                        ? "quality-good"
+                        : editorAnalysis.score >= 60
+                          ? "quality-warning"
+                          : "quality-danger";
 
                     return (
                       <>
-                        <div className="editor-score-bar">
+                        <div className="editor-quality-heading">
+                          <div>
+                            <span>AI QUALITY CHECK</span>
+                            <strong>Content health</strong>
+                          </div>
+                          <div className={`editor-quality-score ${scoreClass}`}>
+                            {editorAnalysis.score}
+                            <small>/100</small>
+                          </div>
+                        </div>
+
+                        <div className="editor-quality-progress">
+                          <div style={{ width: `${editorAnalysis.score}%` }} />
+                        </div>
+
+                        <div className="editor-quality-list">
+                          <div className="editor-quality-row">
+                            <span>Length</span>
+                            <strong className={editorAnalysis.lengthGood ? "ok" : "warn"}>
+                              {editorAnalysis.characterCount <= editorAnalysis.maxLength ? "Good" : "Too long"}
+                            </strong>
+                          </div>
+                          <div className="editor-quality-row">
+                            <span>Hook</span>
+                            <strong className={editorAnalysis.hookGood ? "ok" : "warn"}>
+                              {editorAnalysis.hookGood ? "Strong" : "Review"}
+                            </strong>
+                          </div>
+                          <div className="editor-quality-row">
+                            <span>CTA</span>
+                            <strong className={editorAnalysis.ctaGood ? "ok" : "warn"}>
+                              {editorAnalysis.ctaGood ? "Present" : "Add one"}
+                            </strong>
+                          </div>
+                          <div className="editor-quality-row">
+                            <span>Brand Voice</span>
+                            <strong className={editorAnalysis.brandVoiceGood ? "ok" : "warn"}>
+                              {editorAnalysis.brandVoiceGood ? "Aligned" : "Review"}
+                            </strong>
+                          </div>
+                          <div className="editor-quality-row">
+                            <span>Audience Fit</span>
+                            <strong className={editorAnalysis.audienceGood ? "ok" : "warn"}>
+                              {editorAnalysis.audienceGood ? "Aligned" : "Review"}
+                            </strong>
+                          </div>
+                          <div className="editor-quality-row">
+                            <span>Tone</span>
+                            <strong
+                              className={editorAnalysis.toneAligned ? "ok" : "warn"}
+                              style={{ textTransform: "capitalize" }}
+                            >
+                              {editorAnalysis.detectedTone}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {editorAnalysis.recommendations.length > 0 && (
                           <div
+                            className="editor-quality-recommendations"
                             style={{
-                              width: `${quality.score}%`,
+                              marginTop: "10px",
+                              padding: "10px 11px",
+                              borderRadius: "10px",
+                              background: "#f5f9ff",
+                              border: "1px solid #dfeaf7",
                             }}
-                          />
-                        </div>
-
-                        <div className="editor-check-list">
-                          {checks.map(
-                            ([label, good]) => (
-                              <div
-                                className="editor-check-row"
-                                key={label}
-                              >
-                                <span>{label}</span>
-                                <strong
-                                  className={
-                                    good
-                                      ? "check-pass"
-                                      : "check-review"
-                                  }
+                          >
+                            <strong
+                              style={{
+                                display: "block",
+                                marginBottom: "6px",
+                                color: "#234773",
+                                fontSize: "9px",
+                              }}
+                            >
+                              Recommended improvements
+                            </strong>
+                            {editorAnalysis.recommendations.slice(0, 2).map(
+                              (recommendation, index) => (
+                                <div
+                                  key={`${recommendation}-${index}`}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    gap: "6px",
+                                    marginTop: index === 0 ? 0 : "5px",
+                                    color: "#617996",
+                                    fontSize: "8px",
+                                    lineHeight: 1.45,
+                                  }}
                                 >
-                                  {good ? "✓ Good" : "Review"}
-                                </strong>
-                              </div>
-                            )
-                          )}
-                        </div>
+                                  <span
+                                    style={{
+                                      color: "#1677ff",
+                                      fontWeight: 900,
+                                    }}
+                                  >
+                                    •
+                                  </span>
+                                  <span>{recommendation}</span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        )}
 
-                        <div className="editor-limit">
-                          <span>
-                            Character limit
-                          </span>
-                          <strong>
-                            {quality.characterCount} /{" "}
-                            {quality.maxLength}
-                          </strong>
-                        </div>
+                        {editorAnalysis.detectedForbiddenWords.length > 0 && (
+                          <div className="editor-quality-warning">
+                            Avoid: {editorAnalysis.detectedForbiddenWords.join(", ")}
+                          </div>
+                        )}
                       </>
                     );
                   })()}
                 </div>
-
-                <div className="editor-side-card editor-tips-card">
-                  <span className="editor-tip-label">
-                    EDITOR SHORTCUTS
-                  </span>
-
-                  <div className="editor-shortcut">
-                    <span>Save</span>
-                    <kbd>Ctrl</kbd>
-                    <b>+</b>
-                    <kbd>Enter</kbd>
-                  </div>
-
-                  <div className="editor-shortcut">
-                    <span>Undo</span>
-                    <kbd>Ctrl</kbd>
-                    <b>+</b>
-                    <kbd>Z</kbd>
-                  </div>
-
-                  <div className="editor-shortcut">
-                    <span>Close</span>
-                    <kbd>Esc</kbd>
-                  </div>
-                </div>
               </aside>
             </div>
 
-            <div className="advanced-editor-footer">
-              <div className="editor-footer-info">
-                <span className="editor-unsaved-dot" />
-                <span>
-                  Changes are saved only when you click Save Content.
-                </span>
+            <div className="content-editor-footer">
+              <div>
+                <span className="editor-footer-dot" />
+                Changes are saved to your campaign content.
               </div>
-
-              <div className="brand-form-actions editor-actions">
+              <div className="brand-form-actions">
                 <button
                   className="secondary-button"
-                  type="button"
                   onClick={closeContentEditor}
-                  disabled={
-                    savingEditedContent || editorSaving
-                  }
+                  disabled={savingEditedContent || editorAssistLoading}
                 >
                   Cancel
                 </button>
-
                 <button
                   className="primary-button"
-                  type="button"
                   onClick={saveEditedContent}
-                  disabled={
-                    savingEditedContent || editorSaving
-                  }
+                  disabled={savingEditedContent || editorAssistLoading}
                 >
                   <CheckCircle2 size={17} />
-
-                  {savingEditedContent
-                    ? "Saving..."
-                    : "Save Content"}
+                  {savingEditedContent ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
@@ -4617,6 +4795,82 @@ function Dashboard({ onBack }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATOR PROFILE */}
+
+      {showCreatorProfile && (
+        <div
+          className="creator-profile-overlay"
+          onClick={closeCreatorProfile}
+        >
+          <div
+            className="creator-profile-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="creator-profile-close"
+              onClick={closeCreatorProfile}
+              aria-label="Close profile"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="creator-profile-hero">
+              <div className="creator-profile-avatar">
+                <User size={30} />
+              </div>
+              <div>
+                <p className="eyebrow blue-eyebrow">
+                  CREATOR PROFILE
+                </p>
+                <h2>
+                  {creatorProfile?.name || "Creator"}
+                </h2>
+                <p>
+                  {creatorProfile?.email || "Account email not available"}
+                </p>
+              </div>
+            </div>
+
+            <div className="creator-profile-grid">
+              <div className="creator-profile-card">
+                <span>Role</span>
+                <strong>Creator</strong>
+              </div>
+
+              <div className="creator-profile-card">
+                <span>Workspace</span>
+                <strong>{workspaceSettings.workspaceName}</strong>
+              </div>
+
+              <div className="creator-profile-card">
+                <span>Status</span>
+                <strong className="creator-profile-status">Active</strong>
+              </div>
+
+              <div className="creator-profile-card">
+                <span>AI Creativity</span>
+                <strong>{workspaceSettings.aiCreativity}</strong>
+              </div>
+            </div>
+
+            <div className="creator-profile-footer">
+              <div>
+                <CheckCircle2 size={16} />
+                <span>Your BrandForge workspace is active and ready.</span>
+              </div>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={closeCreatorProfile}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

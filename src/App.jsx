@@ -5,9 +5,24 @@ import "./App.css";
 const API_URL = "http://127.0.0.1:5001";
 
 function App() {
-  const [page, setPage] = useState("landing");
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [registeredUser, setRegisteredUser] = useState(null);
+  const [loggedIn, setLoggedIn] = useState(() => {
+    return localStorage.getItem("brandforge_logged_in") === "true";
+  });
+
+  const [page, setPage] = useState(() => {
+    return localStorage.getItem("brandforge_logged_in") === "true"
+      ? "dashboard"
+      : "landing";
+  });
+
+  const [registeredUser, setRegisteredUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("brandforge_user");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const [authMessage, setAuthMessage] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -123,10 +138,22 @@ function App() {
         return;
       }
 
-      setRegisteredUser(data.user || null);
+      const user = data.user || null;
+
+      setRegisteredUser(user);
       setLoggedIn(true);
       setPage("dashboard");
       setAuthMessage("");
+
+      // Persist login so a browser refresh keeps the user on the dashboard.
+      localStorage.setItem("brandforge_logged_in", "true");
+
+      if (user) {
+        localStorage.setItem(
+          "brandforge_user",
+          JSON.stringify(user)
+        );
+      }
     } catch (error) {
       console.error("Login error:", error);
 
@@ -143,6 +170,11 @@ function App() {
     setRegisteredUser(null);
     setAuthMessage("");
     setPage("landing");
+
+    // Only explicit logout clears the persisted login.
+    localStorage.removeItem("brandforge_logged_in");
+    localStorage.removeItem("brandforge_user");
+    localStorage.removeItem("brandforge_active_page");
   };
 
   /* ================= DASHBOARD ================= */

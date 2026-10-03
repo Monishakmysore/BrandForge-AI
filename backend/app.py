@@ -35,7 +35,9 @@ CORS(
     app,
     resources={
         r"/api/*": {
-            "origins": "*"
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
         }
     }
 )
@@ -863,6 +865,69 @@ def get_single_content(content_id):
         "status": "success",
         "content": content.to_dict()
     })
+
+
+# --------------------------------------------------
+# UPDATE CONTENT
+# --------------------------------------------------
+
+@app.route("/api/content/<int:content_id>", methods=["PUT", "OPTIONS"])
+def update_content(content_id):
+
+    # Browsers may send an OPTIONS preflight request before PUT.
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    content = db.session.get(
+        Content,
+        content_id
+    )
+
+    if not content:
+        return jsonify({
+            "status": "error",
+            "message": "Content not found"
+        }), 404
+
+    data = request.get_json(silent=True) or {}
+
+    new_content = data.get("content")
+
+    if not isinstance(new_content, str) or not new_content.strip():
+        return jsonify({
+            "status": "error",
+            "message": "Content cannot be empty"
+        }), 400
+
+    try:
+        content.content = new_content.strip()
+
+        if "status" in data and data.get("status"):
+            content.status = data.get("status")
+
+        if "platform" in data and data.get("platform"):
+            content.platform = data.get("platform")
+
+        if "content_type" in data and data.get("content_type"):
+            content.content_type = data.get("content_type")
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "Content updated successfully!",
+            "content": content.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to update content.",
+            "error": str(e)
+        }), 500
+
 
 
 # ==================================================
